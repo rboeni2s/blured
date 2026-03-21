@@ -60,7 +60,7 @@ pub struct WlClient<AppEvent>
 impl WlClient
 {
     /// Returns `Ok(false)` if there where no pending events
-    pub fn dispatch(&self) -> anyhow::Result<bool>
+    pub fn dispatch(&self, _delta: Duration) -> anyhow::Result<bool>
     {
         let conn = self.wl_conn.read();
         let mut conn = conn.as_ref().as_ref().unwrap().lock();

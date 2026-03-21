@@ -1,13 +1,13 @@
-use anyhow::Context;
-
 use crate::service::wlclient::WindowHandle;
+use anyhow::Context;
+use std::sync::nonpoison::Mutex;
 
 
 #[allow(unused)]
 pub struct RendererImpl
 {
     instance: wgpu::Instance,
-    surface: wgpu::Surface<'static>,
+    surface: Mutex<Option<wgpu::Surface<'static>>>,
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
@@ -58,9 +58,28 @@ impl RendererImpl
 
         surface.configure(&device, &surface_config);
 
-        let surface_texture = match surface.get_current_texture()
+        Ok(Self {
+            instance,
+            surface: Mutex::new(Some(surface)),
+            adapter,
+            device,
+            queue,
+            width,
+            height,
+        })
+    }
+
+    pub fn render(&self) -> anyhow::Result<()>
+    {
+        // Get the surface texture
+        let surface: &Option<wgpu::Surface> = &self.surface.lock();
+        let surface_texture = match surface
+            .as_ref()
+            .context("No surface")?
+            .get_current_texture()
         {
-            wgpu::CurrentSurfaceTexture::Success(texture) => texture,
+            wgpu::CurrentSurfaceTexture::Success(texture)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
             e =>
             {
                 return Err(anyhow::Error::msg(format!(
@@ -69,39 +88,45 @@ impl RendererImpl
             }
         };
 
+        // Create a texture view from the surface texture
         let texture_view = surface_texture.texture.create_view(&Default::default());
-        let mut encoder = device.create_command_encoder(&Default::default());
 
-        {
-            let _renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &texture_view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                ..Default::default()
-            });
-        }
+        // Create a encoder and begin a new render pass with it
+        let mut encoder = self.device.create_command_encoder(&Default::default());
 
-        queue.submit(Some(encoder.finish()));
+        let _renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: None,
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            ..Default::default()
+        });
+
+        // Submit and present
+        drop(_renderpass);
+        self.queue.submit(Some(encoder.finish()));
         surface_texture.present();
+        Ok(())
+    }
 
-        Ok(Self {
-            instance,
-            surface,
-            adapter,
-            device,
-            queue,
-            width,
-            height,
-        })
+    /// Destroys the wgpu surface, nothing can be rendered without reinitializing the renderer after calling this function.
+    ///
+    /// # Warning
+    /// This function must be called before the wayland surface is destroyed!!!
+    pub fn destroy_surface(&self)
+    {
+        if let Some(surface) = self.surface.lock().take()
+        {
+            drop(surface);
+        }
     }
 }
