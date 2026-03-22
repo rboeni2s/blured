@@ -1,6 +1,13 @@
-use crate::service::wlclient::WindowHandle;
+use crate::service::{
+    renderer::image_scene::{ImageScene, ImageSceneDesc},
+    renderer::pipelines::{EffectPipeline, ScenePipeline},
+    wlclient::WindowHandle,
+};
 use anyhow::Context;
-use std::sync::nonpoison::Mutex;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    nonpoison::Mutex,
+};
 
 
 #[allow(unused)]
@@ -13,12 +20,18 @@ pub struct RendererImpl
     queue: wgpu::Queue,
     width: u32,
     height: u32,
+    default_scene: ImageScene,
+    scene_index: usize,
+    scene_out_of_date: AtomicBool,
+    scenes: Vec<ImageScene>,
+    scene_pipeline: ScenePipeline,
+    effect_pipeline: EffectPipeline,
 }
 
 
 impl RendererImpl
 {
-    pub fn new(window_handle: WindowHandle) -> anyhow::Result<Self>
+    pub fn new(window_handle: WindowHandle, scene_desc: &[ImageSceneDesc]) -> anyhow::Result<Self>
     {
         let (width, height) = window_handle.surface_size;
 
@@ -58,6 +71,29 @@ impl RendererImpl
 
         surface.configure(&device, &surface_config);
 
+        let effect_pipeline = EffectPipeline::new(&device, format);
+        let scene_pipeline = ScenePipeline::new(&device, window_handle.surface_size);
+
+        let mut scenes = Vec::with_capacity(scene_desc.len());
+        for desc in scene_desc
+        {
+            scenes.push(desc.load(
+                &device,
+                &queue,
+                &scene_pipeline.color_bind_group_layout,
+                &scene_pipeline.texture_bind_group_layout,
+                window_handle.surface_size,
+            )?);
+        }
+
+        let default_scene = ImageSceneDesc::default().load(
+            &device,
+            &queue,
+            &scene_pipeline.color_bind_group_layout,
+            &scene_pipeline.texture_bind_group_layout,
+            window_handle.surface_size,
+        )?;
+
         Ok(Self {
             instance,
             surface: Mutex::new(Some(surface)),
@@ -66,6 +102,12 @@ impl RendererImpl
             queue,
             width,
             height,
+            scenes,
+            default_scene,
+            scene_index: 0,
+            scene_pipeline,
+            effect_pipeline,
+            scene_out_of_date: AtomicBool::new(true),
         })
     }
 
@@ -91,29 +133,32 @@ impl RendererImpl
         // Create a texture view from the surface texture
         let texture_view = surface_texture.texture.create_view(&Default::default());
 
-        // Create a encoder and begin a new render pass with it
-        let mut encoder = self.device.create_command_encoder(&Default::default());
+        // Only rerender the scene if it is out of date
+        if self.scene_out_of_date.load(Ordering::Acquire)
+        {
+            let scene = self
+                .scenes
+                .get(self.scene_index)
+                .unwrap_or(&self.default_scene);
 
-        let _renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::GREEN),
-                    store: wgpu::StoreOp::Store,
-                },
-                depth_slice: None,
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            ..Default::default()
-        });
+            self.scene_pipeline
+                .render_scene(&self.device, &self.queue, &scene);
 
-        // Submit and present
-        drop(_renderpass);
-        self.queue.submit(Some(encoder.finish()));
+            let _ = self.scene_out_of_date.compare_exchange(
+                true,
+                false,
+                Ordering::Release,
+                Ordering::Relaxed,
+            );
+        }
+
+        self.effect_pipeline.render_effect(
+            &self.device,
+            &self.queue,
+            &self.scene_pipeline.output_texture,
+            &texture_view,
+        );
+
         surface_texture.present();
         Ok(())
     }

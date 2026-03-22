@@ -5,7 +5,9 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.102"
+cgmath = "0.18.0"
 ctrlc = { version = "3.5.2", features = ["termination"] }
+image = "0.25.10"
 keep = { git = "https://github.com/rboeni2s/keep.git", version = "0.1.0" }
 log = "0.4.29"
 plug = { git = "https://github.com/rboeni2s/keep.git", version = "0.1.0" }
