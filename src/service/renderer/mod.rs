@@ -13,10 +13,7 @@ use std::{
 
 use crate::service::{
     application::AppEvent,
-    renderer::{
-        image_scene::{ImageFit, ImageSceneDesc},
-        renderer_impl::RendererImpl,
-    },
+    renderer::renderer_impl::RendererImpl,
     wlclient::WindowHandle,
 };
 use anyhow::Context;

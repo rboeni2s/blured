@@ -23,12 +23,12 @@ impl ScenePipeline
 {
     pub fn new(device: &wgpu::Device, (width, height): (u32, u32)) -> Self
     {
-        let camera = CameraBuffer::new(&device, Camera::default(), width, height);
-        let camera_bind_group = camera.create_bind_group(&device);
+        let camera = CameraBuffer::new(device, Camera::default(), width, height);
+        let camera_bind_group = camera.create_bind_group(device);
 
         let shader = device.create_shader_module(wgpu::include_wgsl!("../../../shader/scene.wgsl"));
 
-        let texture_bind_group_layout = TextureBindGroupLayout::new(&device);
+        let texture_bind_group_layout = TextureBindGroupLayout::new(device);
 
         let color_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -158,7 +158,7 @@ impl EffectPipeline
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self
     {
         let shader = device.create_shader_module(wgpu::include_wgsl!("../../../shader/blur.wgsl"));
-        let texture_bind_group_layout = TextureBindGroupLayout::new(&device);
+        let texture_bind_group_layout = TextureBindGroupLayout::new(device);
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,

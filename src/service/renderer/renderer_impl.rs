@@ -142,7 +142,7 @@ impl RendererImpl
                 .unwrap_or(&self.default_scene);
 
             self.scene_pipeline
-                .render_scene(&self.device, &self.queue, &scene);
+                .render_scene(&self.device, &self.queue, scene);
 
             let _ = self.scene_out_of_date.compare_exchange(
                 true,
