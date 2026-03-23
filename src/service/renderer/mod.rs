@@ -26,6 +26,14 @@ use anyhow::Context;
 use plug::prelude::*;
 
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum RenderResult
+{
+    Clean,
+    OutOfDate,
+}
+
+
 #[service]
 pub struct Renderer<AppEvent>
 {
@@ -69,15 +77,17 @@ impl Renderer
         // Render if the surface is out of date
         if self.out_of_date.load(Ordering::Acquire)
         {
-            self.render()?;
-
-            // Try to mark the surface as not out of date
-            let _ = self.out_of_date.compare_exchange(
-                true,
-                false,
-                Ordering::Release,
-                Ordering::Relaxed,
-            );
+            // Don't rerender the scene if it is not dynamic
+            if self.render()? == RenderResult::Clean
+            {
+                // Try to mark the surface as not out of date
+                let _ = self.out_of_date.compare_exchange(
+                    true,
+                    false,
+                    Ordering::Release,
+                    Ordering::Relaxed,
+                );
+            }
         }
 
         Ok(())
@@ -95,7 +105,7 @@ impl Renderer
         Ok(())
     }
 
-    fn render(&self) -> anyhow::Result<()>
+    fn render(&self) -> anyhow::Result<RenderResult>
     {
         self.renderer
             .lock()

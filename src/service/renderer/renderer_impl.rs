@@ -1,6 +1,9 @@
 use crate::service::{
-    renderer::image_scene::{ImageScene, ImageSceneDesc},
-    renderer::pipelines::{EffectPipeline, ScenePipeline},
+    renderer::{
+        RenderResult,
+        image_scene::{ImageScene, ImageSceneDesc},
+        pipelines::{EffectPipeline, ScenePipeline},
+    },
     wlclient::WindowHandle,
 };
 use anyhow::Context;
@@ -107,8 +110,10 @@ impl RendererImpl
         })
     }
 
-    pub fn render(&mut self) -> anyhow::Result<()>
+    pub fn render(&mut self) -> anyhow::Result<RenderResult>
     {
+        let mut render_result = RenderResult::Clean;
+
         // Get the surface texture
         let surface_texture = match (self.surface)
             .as_ref()
@@ -128,14 +133,15 @@ impl RendererImpl
         // Create a texture view from the surface texture
         let texture_view = surface_texture.texture.create_view(&Default::default());
 
+        // Try to get the current scene or fallback to the default scene
+        let scene = self
+            .scenes
+            .get(self.scene_index)
+            .unwrap_or(&self.default_scene);
+
         // Only rerender the scene if it is out of date
         if self.scene_out_of_date
         {
-            let scene = self
-                .scenes
-                .get(self.scene_index)
-                .unwrap_or(&self.default_scene);
-
             self.scene_pipeline
                 .render_scene(&self.device, &self.queue, scene);
 
@@ -149,8 +155,14 @@ impl RendererImpl
             &texture_view,
         );
 
+        // If the scene is dynamic, render again on the next frame
+        if scene.dynamic
+        {
+            render_result = RenderResult::OutOfDate;
+        }
+
         surface_texture.present();
-        Ok(())
+        Ok(render_result)
     }
 
     /// Destroys the wgpu surface, nothing can be rendered without reinitializing the renderer after calling this function.
