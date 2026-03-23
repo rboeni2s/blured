@@ -7,7 +7,10 @@ mod texture;
 
 
 use std::{
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        nonpoison::Mutex,
+    },
     time::Duration,
 };
 
@@ -20,7 +23,6 @@ use crate::service::{
     wlclient::WindowHandle,
 };
 use anyhow::Context;
-use keep::Keep;
 use plug::prelude::*;
 
 
@@ -28,7 +30,7 @@ use plug::prelude::*;
 pub struct Renderer<AppEvent>
 {
     #[value = None.into()]
-    renderer: Keep<Option<RendererImpl>>,
+    renderer: Mutex<Option<RendererImpl>>,
 
     #[value = AtomicBool::new(false)]
     out_of_date: AtomicBool,
@@ -39,7 +41,7 @@ impl Renderer
 {
     pub fn init(&self, window_handle: WindowHandle) -> anyhow::Result<()>
     {
-        self.renderer.write(Some(RendererImpl::new(
+        *self.renderer.lock() = Some(RendererImpl::new(
             window_handle,
             &[
                 ImageSceneDesc {
@@ -56,7 +58,7 @@ impl Renderer
                     ..Default::default()
                 },
             ],
-        )?));
+        )?);
 
         self.out_of_date.store(true, Ordering::Relaxed);
         Ok(())
@@ -84,9 +86,8 @@ impl Renderer
     pub fn switch_scene(&self, ident: &str) -> anyhow::Result<()>
     {
         self.renderer
-            .read()
-            .as_ref()
-            .as_ref()
+            .lock()
+            .as_mut()
             .context("Renderer was not initialized")?
             .switch_scene(ident)?;
 
@@ -97,9 +98,8 @@ impl Renderer
     fn render(&self) -> anyhow::Result<()>
     {
         self.renderer
-            .read()
-            .as_ref()
-            .as_ref()
+            .lock()
+            .as_mut()
             .context("Trying to render while no renderer has been initialized")?
             .render()
     }
@@ -111,7 +111,7 @@ impl SimpleDispatch<AppEvent> for Renderer
     fn simple_dispatch(&self, event: &AppEvent)
     {
         if let AppEvent::Quit = event
-            && let Some(renderer) = self.renderer.read().as_ref()
+            && let Some(renderer) = self.renderer.lock().as_mut()
         {
             renderer.destroy_surface();
         }

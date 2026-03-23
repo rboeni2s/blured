@@ -4,25 +4,21 @@ use crate::service::{
     wlclient::WindowHandle,
 };
 use anyhow::Context;
-use std::sync::{
-    atomic::{AtomicBool, AtomicUsize, Ordering},
-    nonpoison::Mutex,
-};
 
 
 #[allow(unused)]
 pub struct RendererImpl
 {
     instance: wgpu::Instance,
-    surface: Mutex<Option<wgpu::Surface<'static>>>,
+    surface: Option<wgpu::Surface<'static>>,
     adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
     width: u32,
     height: u32,
     default_scene: ImageScene,
-    scene_index: AtomicUsize,
-    scene_out_of_date: AtomicBool,
+    scene_index: usize,
+    scene_out_of_date: bool,
     scenes: Vec<ImageScene>,
     scene_pipeline: ScenePipeline,
     effect_pipeline: EffectPipeline,
@@ -96,7 +92,7 @@ impl RendererImpl
 
         Ok(Self {
             instance,
-            surface: Mutex::new(Some(surface)),
+            surface: Some(surface),
             adapter,
             device,
             queue,
@@ -104,18 +100,17 @@ impl RendererImpl
             height,
             scenes,
             default_scene,
-            scene_index: AtomicUsize::new(0),
+            scene_index: 0,
             scene_pipeline,
             effect_pipeline,
-            scene_out_of_date: AtomicBool::new(true),
+            scene_out_of_date: true,
         })
     }
 
-    pub fn render(&self) -> anyhow::Result<()>
+    pub fn render(&mut self) -> anyhow::Result<()>
     {
         // Get the surface texture
-        let surface: &Option<wgpu::Surface> = &self.surface.lock();
-        let surface_texture = match surface
+        let surface_texture = match (self.surface)
             .as_ref()
             .context("No surface")?
             .get_current_texture()
@@ -134,22 +129,17 @@ impl RendererImpl
         let texture_view = surface_texture.texture.create_view(&Default::default());
 
         // Only rerender the scene if it is out of date
-        if self.scene_out_of_date.load(Ordering::Acquire)
+        if self.scene_out_of_date
         {
             let scene = self
                 .scenes
-                .get(self.scene_index.load(Ordering::Relaxed))
+                .get(self.scene_index)
                 .unwrap_or(&self.default_scene);
 
             self.scene_pipeline
                 .render_scene(&self.device, &self.queue, scene);
 
-            let _ = self.scene_out_of_date.compare_exchange(
-                true,
-                false,
-                Ordering::Release,
-                Ordering::Relaxed,
-            );
+            self.scene_out_of_date = false;
         }
 
         self.effect_pipeline.render_effect(
@@ -167,16 +157,16 @@ impl RendererImpl
     ///
     /// # Warning
     /// This function must be called before the wayland surface is destroyed!!!
-    pub fn destroy_surface(&self)
+    pub fn destroy_surface(&mut self)
     {
-        if let Some(surface) = self.surface.lock().take()
+        if let Some(surface) = self.surface.take()
         {
             drop(surface);
         }
     }
 
     /// Tries to find a scene with the given identifier and switches to it, returning the scene index.
-    pub fn switch_scene(&self, ident: &str) -> anyhow::Result<usize>
+    pub fn switch_scene(&mut self, ident: &str) -> anyhow::Result<usize>
     {
         let index = self
             .scenes
@@ -184,8 +174,8 @@ impl RendererImpl
             .position(|e| e.ident == ident)
             .context(format!("No scene named: {ident:?}"))?;
 
-        self.scene_index.store(index, Ordering::Relaxed);
-        self.scene_out_of_date.store(true, Ordering::Relaxed);
+        self.scene_index = index;
+        self.scene_out_of_date = true;
 
         Ok(index)
     }

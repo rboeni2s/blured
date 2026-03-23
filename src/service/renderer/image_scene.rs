@@ -25,6 +25,7 @@ pub struct ImageScene
     pub index_buffer: IndexBuffer,
     pub texture_bind_group: wgpu::BindGroup,
     pub background_bind_group: wgpu::BindGroup,
+    pub dynamic: bool,
 }
 
 
@@ -60,7 +61,7 @@ impl ImageScene
         let verts = [image_verts, background_verts];
 
         // Create the background color buffer
-        let buf_size = size_of::<[f32; 4]>();
+        let buf_size = size_of_val(&desc.background);
         let buf_ptr = &desc.background as *const _ as *const u8;
         let buf = unsafe { std::slice::from_raw_parts(buf_ptr, buf_size) };
 
@@ -88,7 +89,7 @@ impl ImageScene
             index_buffer: IndexBuffer::new(device, &INDICES),
             texture_bind_group: texture_layout.create_bind_group(device, texture.texture()),
             background_bind_group: color_bind_group,
-            // background: VertexBuffer::new(device, &make_background(surface_width, surface_height)),
+            dynamic: desc.dynamic,
         })
     }
 
@@ -108,7 +109,8 @@ pub struct ImageSceneDesc
     pub ident: String,
     pub image_source: Vec<u8>,
     pub image_fit: ImageFit,
-    pub background: [f32; 4],
+    pub background: [f32; 3],
+    pub dynamic: bool,
 }
 
 
@@ -143,7 +145,8 @@ impl Default for ImageSceneDesc
             ident: "default".into(),
             image_source: include_bytes!("../../../textures/astro_miku.jpg").to_vec(),
             image_fit: Default::default(),
-            background: [0.055 * 0.5, 0.12 * 0.5, 0.2 * 0.5, 1.0],
+            background: [0.055 * 0.5, 0.12 * 0.5, 0.2 * 0.5],
+            dynamic: false,
         }
     }
 }
