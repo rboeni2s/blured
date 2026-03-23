@@ -54,8 +54,7 @@ impl Renderer
             &[
                 ImageSceneDesc {
                     ident: "w1".to_string(),
-                    image_source: include_bytes!("../../../../../Bilder/Wallpaper/path.jpg")
-                        .to_vec(),
+                    image_source: include_bytes!("../../../textures/path.jpg").to_vec(),
                     image_fit: ImageFit::default(),
                     ..Default::default()
                 },
