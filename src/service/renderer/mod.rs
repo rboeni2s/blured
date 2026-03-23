@@ -13,7 +13,10 @@ use std::{
 
 use crate::service::{
     application::AppEvent,
-    renderer::renderer_impl::RendererImpl,
+    renderer::{
+        image_scene::{ImageFit, ImageSceneDesc},
+        renderer_impl::RendererImpl,
+    },
     wlclient::WindowHandle,
 };
 use anyhow::Context;
@@ -39,12 +42,19 @@ impl Renderer
         self.renderer.write(Some(RendererImpl::new(
             window_handle,
             &[
-                // ImageSceneDesc {
-                // ident: "w1".to_string(),
-                // image_source: include_bytes!("../../../../../Bilder/Wallpaper/path.jpg").to_vec(),
-                // image_fit: ImageFit::default(),
-                // ..Default::default()
-                // }
+                ImageSceneDesc {
+                    ident: "w1".to_string(),
+                    image_source: include_bytes!("../../../../../Bilder/Wallpaper/path.jpg")
+                        .to_vec(),
+                    image_fit: ImageFit::default(),
+                    ..Default::default()
+                },
+                ImageSceneDesc {
+                    ident: "w2".to_string(),
+                    image_source: include_bytes!("../../../textures/swirls.jpg").to_vec(),
+                    image_fit: ImageFit::Stretch,
+                    ..Default::default()
+                },
             ],
         )?));
 
@@ -68,6 +78,19 @@ impl Renderer
             );
         }
 
+        Ok(())
+    }
+
+    pub fn switch_scene(&self, ident: &str) -> anyhow::Result<()>
+    {
+        self.renderer
+            .read()
+            .as_ref()
+            .as_ref()
+            .context("Renderer was not initialized")?
+            .switch_scene(ident)?;
+
+        self.out_of_date.store(true, Ordering::Relaxed);
         Ok(())
     }
 

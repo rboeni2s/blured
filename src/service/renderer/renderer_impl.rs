@@ -5,7 +5,7 @@ use crate::service::{
 };
 use anyhow::Context;
 use std::sync::{
-    atomic::{AtomicBool, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     nonpoison::Mutex,
 };
 
@@ -21,7 +21,7 @@ pub struct RendererImpl
     width: u32,
     height: u32,
     default_scene: ImageScene,
-    scene_index: usize,
+    scene_index: AtomicUsize,
     scene_out_of_date: AtomicBool,
     scenes: Vec<ImageScene>,
     scene_pipeline: ScenePipeline,
@@ -104,7 +104,7 @@ impl RendererImpl
             height,
             scenes,
             default_scene,
-            scene_index: 0,
+            scene_index: AtomicUsize::new(0),
             scene_pipeline,
             effect_pipeline,
             scene_out_of_date: AtomicBool::new(true),
@@ -138,7 +138,7 @@ impl RendererImpl
         {
             let scene = self
                 .scenes
-                .get(self.scene_index)
+                .get(self.scene_index.load(Ordering::Relaxed))
                 .unwrap_or(&self.default_scene);
 
             self.scene_pipeline
@@ -173,5 +173,20 @@ impl RendererImpl
         {
             drop(surface);
         }
+    }
+
+    /// Tries to find a scene with the given identifier and switches to it, returning the scene index.
+    pub fn switch_scene(&self, ident: &str) -> anyhow::Result<usize>
+    {
+        let index = self
+            .scenes
+            .iter()
+            .position(|e| e.ident == ident)
+            .context(format!("No scene named: {ident:?}"))?;
+
+        self.scene_index.store(index, Ordering::Relaxed);
+        self.scene_out_of_date.store(true, Ordering::Relaxed);
+
+        Ok(index)
     }
 }

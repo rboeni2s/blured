@@ -20,13 +20,11 @@ pub enum ImageFit
 
 pub struct ImageScene
 {
-    #[allow(unused)]
-    ident: String,
-    vertex_buffer: VertexBuffer<'static>,
-    // background: VertexBuffer<'static>,
-    index_buffer: IndexBuffer,
-    texture_bind_group: wgpu::BindGroup,
-    background_bind_group: wgpu::BindGroup,
+    pub ident: String,
+    pub vertex_buffer: VertexBuffer<'static>,
+    pub index_buffer: IndexBuffer,
+    pub texture_bind_group: wgpu::BindGroup,
+    pub background_bind_group: wgpu::BindGroup,
 }
 
 

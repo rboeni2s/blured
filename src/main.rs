@@ -5,6 +5,13 @@ use plug::logger;
 
 fn main()
 {
+    // Default to only logging warning and above in release builds
+    #[cfg(not(debug_assertions))]
+    if std::env::var("PLUG_LOG").is_err()
+    {
+        unsafe { std::env::set_var("PLUG_LOG", "warn") };
+    }
+
     if let Err(e) = logger::init()
     {
         eprintln!("Error: Failed to initialize logger: {e}");
