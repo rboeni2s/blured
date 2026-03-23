@@ -81,11 +81,19 @@ impl Application
 
         //TEST: Scene switching
         let (mut switcher, mut w2) = (Instant::now(), false);
+        let mut cycles = 0;
 
         while !*self.should_quit.read()
         {
             last_frame_time = frame_start.elapsed();
             frame_start = Instant::now();
+
+            cycles += 1;
+            if cycles == 101
+            {
+                self.renderer.toggle_effect()?;
+                cycles = 0;
+            }
 
             self.wl_client.dispatch(last_frame_time)?;
             self.renderer.dispatch(last_frame_time)?;

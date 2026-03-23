@@ -12,7 +12,7 @@ use anyhow::Context;
 
 
 //TODO: Make this configurable...
-const EFFECT_TRANSITION_SECS: f32 = 0.3;
+const EFFECT_TRANSITION_SECS: f32 = 0.2;
 
 
 #[allow(unused)]
@@ -123,7 +123,7 @@ impl RendererImpl
             scene_out_of_date: true,
             effect_strength: 0.0,
             scene_effect_strength,
-            effect_on: true,
+            effect_on: false,
             effect_change: (scene_effect_strength / EFFECT_TRANSITION_SECS).abs(),
         })
     }

@@ -185,7 +185,7 @@ impl Default for ImageSceneDesc
             background: [0.055 * 0.5, 0.12 * 0.5, 0.2 * 0.5],
             dynamic: false,
             effect_params: EffectParams::default(),
-            effect_strength: 1.0,
+            effect_strength: 50.0,
         }
     }
 }
