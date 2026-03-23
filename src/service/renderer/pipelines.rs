@@ -2,8 +2,10 @@ use crate::service::renderer::buffer::IndexBuffer;
 use crate::service::renderer::buffer::SQUARE_INDICES;
 use crate::service::renderer::buffer::SQUARE_VERTICES;
 use crate::service::renderer::buffer::VertexBuffer;
+use crate::service::renderer::buffer::create_bind_group;
 use crate::service::renderer::camera::Camera;
 use crate::service::renderer::camera::CameraBuffer;
+use crate::service::renderer::image_scene::EffectParams;
 use crate::service::renderer::image_scene::ImageScene;
 use crate::service::renderer::texture::Texture;
 use crate::service::renderer::texture::TextureBindGroupLayout;
@@ -151,6 +153,8 @@ pub struct EffectPipeline
     pub texture_bind_group_layout: TextureBindGroupLayout,
     pub vertex_buffer: VertexBuffer<'static>,
     pub index_buffer: IndexBuffer,
+    pub effect_params_layout: wgpu::BindGroupLayout,
+    pub strength_layout: wgpu::BindGroupLayout,
 }
 
 impl EffectPipeline
@@ -159,10 +163,16 @@ impl EffectPipeline
     {
         let shader = device.create_shader_module(wgpu::include_wgsl!("../../../shader/blur.wgsl"));
         let texture_bind_group_layout = TextureBindGroupLayout::new(device);
+        let effect_data_layout = EffectParams::layout(device);
+        let strength_layout = EffectParams::layout(device);
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[Some(&texture_bind_group_layout)],
+            bind_group_layouts: &[
+                Some(&texture_bind_group_layout),
+                Some(&effect_data_layout),
+                Some(&strength_layout),
+            ],
             immediate_size: 0,
         });
 
@@ -212,6 +222,8 @@ impl EffectPipeline
             texture_bind_group_layout,
             vertex_buffer,
             index_buffer,
+            effect_params_layout: effect_data_layout,
+            strength_layout,
         }
     }
 
@@ -219,8 +231,10 @@ impl EffectPipeline
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        scene: &Texture,
+        output: &Texture,
+        scene: &ImageScene,
         surface: &wgpu::TextureView,
+        effect_strength: f32,
     )
     {
         // Create a encoder and begin a new render pass with it
@@ -245,11 +259,16 @@ impl EffectPipeline
 
         let texture_bind_group = self
             .texture_bind_group_layout
-            .create_bind_group(device, scene);
+            .create_bind_group(device, &output);
+
+        // vec2 with x: current strength, y: maximum strength
+        let strength = [effect_strength, scene.effect_strength];
+        let strength = create_bind_group(device, &strength, &self.strength_layout);
 
         renderpass.set_pipeline(&self.pipeline);
-
         renderpass.set_bind_group(0, &texture_bind_group, &[]);
+        renderpass.set_bind_group(1, &scene.effect_params_bind_group, &[]);
+        renderpass.set_bind_group(2, &strength, &[]);
         self.vertex_buffer.set_for_pass(&mut renderpass);
         self.index_buffer.set_for_pass(&mut renderpass);
         self.index_buffer.draw_index(&mut renderpass);

@@ -72,13 +72,13 @@ impl Renderer
         Ok(())
     }
 
-    pub fn dispatch(&self, _delta: Duration) -> anyhow::Result<()>
+    pub fn dispatch(&self, delta: Duration) -> anyhow::Result<()>
     {
         // Render if the surface is out of date
         if self.out_of_date.load(Ordering::Acquire)
         {
             // Don't rerender the scene if it is not dynamic
-            if self.render()? == RenderResult::Clean
+            if self.render(delta)? == RenderResult::Clean
             {
                 // Try to mark the surface as not out of date
                 let _ = self.out_of_date.compare_exchange(
@@ -105,13 +105,39 @@ impl Renderer
         Ok(())
     }
 
-    fn render(&self) -> anyhow::Result<RenderResult>
+    pub fn set_effect_on(&self, on: bool) -> anyhow::Result<()>
+    {
+        self.renderer
+            .lock()
+            .as_mut()
+            .context("Renderer was not initialized")?
+            .set_effect(on);
+
+        self.out_of_date.store(true, Ordering::Relaxed);
+
+        Ok(())
+    }
+
+    pub fn toggle_effect(&self) -> anyhow::Result<()>
+    {
+        self.renderer
+            .lock()
+            .as_mut()
+            .context("Renderer was not initialized")?
+            .toggle_effect();
+
+        self.out_of_date.store(true, Ordering::Relaxed);
+
+        Ok(())
+    }
+
+    fn render(&self, delta: Duration) -> anyhow::Result<RenderResult>
     {
         self.renderer
             .lock()
             .as_mut()
             .context("Trying to render while no renderer has been initialized")?
-            .render()
+            .render(delta)
     }
 }
 

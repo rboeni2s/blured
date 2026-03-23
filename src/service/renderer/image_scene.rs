@@ -1,9 +1,8 @@
-use wgpu::util::DeviceExt;
-
 use crate::service::renderer::{
-    buffer::{IndexBuffer, Vertex, VertexBuffer},
+    buffer::{IndexBuffer, Vertex, VertexBuffer, create_bind_group},
     texture::{AsocTexture, Image, TextureBindGroupLayout},
 };
+use wgpu::BindGroupLayoutEntry;
 
 
 #[allow(unused)]
@@ -18,6 +17,50 @@ pub enum ImageFit
 }
 
 
+#[repr(C)]
+#[derive(Clone)]
+pub struct EffectParams
+{
+    pub param_a: [f32; 4],
+    pub param_b: [f32; 4],
+    pub param_c: [f32; 4],
+}
+
+
+impl EffectParams
+{
+    pub fn layout(device: &wgpu::Device) -> wgpu::BindGroupLayout
+    {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: None,
+            entries: &[BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        })
+    }
+}
+
+
+impl Default for EffectParams
+{
+    fn default() -> Self
+    {
+        Self {
+            param_a: [1.0, 0.0, 0.0, 1.0],
+            param_b: [0.0, 1.0, 0.0, 1.0],
+            param_c: [0.0, 0.0, 1.0, 1.0],
+        }
+    }
+}
+
+
 pub struct ImageScene
 {
     pub ident: String,
@@ -25,6 +68,9 @@ pub struct ImageScene
     pub index_buffer: IndexBuffer,
     pub texture_bind_group: wgpu::BindGroup,
     pub background_bind_group: wgpu::BindGroup,
+    pub effect_params_bind_group: wgpu::BindGroup,
+    // pub effect_params: EffectParams,
+    pub effect_strength: f32,
     pub dynamic: bool,
 }
 
@@ -37,6 +83,7 @@ impl ImageScene
         queue: &wgpu::Queue,
         background_layout: &wgpu::BindGroupLayout,
         texture_layout: &TextureBindGroupLayout,
+        effect_params_layout: &wgpu::BindGroupLayout,
         (surface_width, surface_height): (u32, u32),
     ) -> anyhow::Result<Self>
     {
@@ -60,26 +107,9 @@ impl ImageScene
         let background_verts = make_background(surface_width, surface_height);
         let verts = [image_verts, background_verts];
 
-        // Create the background color buffer
-        let buf_size = size_of_val(&desc.background);
-        let buf_ptr = &desc.background as *const _ as *const u8;
-        let buf = unsafe { std::slice::from_raw_parts(buf_ptr, buf_size) };
-
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Camera Projection Buffer"),
-            contents: buf,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        // Put the buffer into the bind group
-        let color_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: background_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: buffer.as_entire_binding(),
-            }],
-        });
+        let background_bind_group = create_bind_group(device, &desc.background, background_layout);
+        let effect_params_bind_group =
+            create_bind_group(device, &desc.effect_params, effect_params_layout);
 
         let texture = AsocTexture::from_image(device, queue, image);
 
@@ -88,8 +118,11 @@ impl ImageScene
             vertex_buffer: VertexBuffer::new(device, verts.as_flattened()),
             index_buffer: IndexBuffer::new(device, &INDICES),
             texture_bind_group: texture_layout.create_bind_group(device, texture.texture()),
-            background_bind_group: color_bind_group,
+            background_bind_group,
+            effect_params_bind_group,
             dynamic: desc.dynamic,
+            // effect_params: desc.effect_params.clone(),
+            effect_strength: desc.effect_strength,
         })
     }
 
@@ -111,6 +144,8 @@ pub struct ImageSceneDesc
     pub image_fit: ImageFit,
     pub background: [f32; 3],
     pub dynamic: bool,
+    pub effect_params: EffectParams,
+    pub effect_strength: f32,
 }
 
 
@@ -122,6 +157,7 @@ impl ImageSceneDesc
         queue: &wgpu::Queue,
         background_layout: &wgpu::BindGroupLayout,
         texture_layout: &TextureBindGroupLayout,
+        effect_layout: &wgpu::BindGroupLayout,
         surface_size: (u32, u32),
     ) -> anyhow::Result<ImageScene>
     {
@@ -131,6 +167,7 @@ impl ImageSceneDesc
             queue,
             background_layout,
             texture_layout,
+            effect_layout,
             surface_size,
         )
     }
@@ -147,6 +184,8 @@ impl Default for ImageSceneDesc
             image_fit: Default::default(),
             background: [0.055 * 0.5, 0.12 * 0.5, 0.2 * 0.5],
             dynamic: false,
+            effect_params: EffectParams::default(),
+            effect_strength: 1.0,
         }
     }
 }

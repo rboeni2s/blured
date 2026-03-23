@@ -195,3 +195,33 @@ impl IndexBuffer
         render_pass.draw_indexed(0..self.length, 0, 0..1);
     }
 }
+
+
+pub fn create_bind_group<T>(
+    device: &wgpu::Device,
+    data: &T,
+    layout: &wgpu::BindGroupLayout,
+) -> wgpu::BindGroup
+{
+    // Cast &T into &[u8]
+    let buf_size = size_of_val(data);
+    let buf_ptr = data as *const _ as *const u8;
+    let buf = unsafe { std::slice::from_raw_parts(buf_ptr, buf_size) };
+
+    // Create a buffer
+    let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: None,
+        contents: buf,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+    });
+
+    // Put the buffer in a bind group
+    device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: None,
+        layout: layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: buffer.as_entire_binding(),
+        }],
+    })
+}

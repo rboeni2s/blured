@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::service::{
     renderer::{
         RenderResult,
@@ -7,6 +9,10 @@ use crate::service::{
     wlclient::WindowHandle,
 };
 use anyhow::Context;
+
+
+//TODO: Make this configurable...
+const EFFECT_TRANSITION_SECS: f32 = 0.3;
 
 
 #[allow(unused)]
@@ -25,6 +31,10 @@ pub struct RendererImpl
     scenes: Vec<ImageScene>,
     scene_pipeline: ScenePipeline,
     effect_pipeline: EffectPipeline,
+    effect_strength: f32,
+    effect_on: bool,
+    scene_effect_strength: f32,
+    effect_change: f32,
 }
 
 
@@ -81,6 +91,7 @@ impl RendererImpl
                 &queue,
                 &scene_pipeline.color_bind_group_layout,
                 &scene_pipeline.texture_bind_group_layout,
+                &effect_pipeline.effect_params_layout,
                 window_handle.surface_size,
             )?);
         }
@@ -90,8 +101,11 @@ impl RendererImpl
             &queue,
             &scene_pipeline.color_bind_group_layout,
             &scene_pipeline.texture_bind_group_layout,
+            &effect_pipeline.effect_params_layout,
             window_handle.surface_size,
         )?;
+
+        let scene_effect_strength = scenes.first().unwrap_or(&default_scene).effect_strength;
 
         Ok(Self {
             instance,
@@ -107,12 +121,16 @@ impl RendererImpl
             scene_pipeline,
             effect_pipeline,
             scene_out_of_date: true,
+            effect_strength: 0.0,
+            scene_effect_strength,
+            effect_on: true,
+            effect_change: (scene_effect_strength / EFFECT_TRANSITION_SECS).abs(),
         })
     }
 
-    pub fn render(&mut self) -> anyhow::Result<RenderResult>
+    pub fn render(&mut self, delta: Duration) -> anyhow::Result<RenderResult>
     {
-        let mut render_result = RenderResult::Clean;
+        let mut render_result = self.adjust_effect_strength(delta);
 
         // Get the surface texture
         let surface_texture = match (self.surface)
@@ -152,7 +170,9 @@ impl RendererImpl
             &self.device,
             &self.queue,
             &self.scene_pipeline.output_texture,
+            &scene,
             &texture_view,
+            self.effect_strength,
         );
 
         // If the scene is dynamic, render again on the next frame
@@ -186,9 +206,63 @@ impl RendererImpl
             .position(|e| e.ident == ident)
             .context(format!("No scene named: {ident:?}"))?;
 
+        self.scene_effect_strength = self
+            .scenes
+            .first()
+            .unwrap_or(&self.default_scene)
+            .effect_strength;
+
         self.scene_index = index;
+        self.effect_change = (self.scene_effect_strength / EFFECT_TRANSITION_SECS).abs();
         self.scene_out_of_date = true;
 
         Ok(index)
+    }
+
+    fn adjust_effect_strength(&mut self, delta: Duration) -> RenderResult
+    {
+        if (self.effect_on && self.effect_strength == self.scene_effect_strength)
+            || (!self.effect_on && self.effect_strength == 0.0)
+        {
+            return RenderResult::Clean;
+        }
+
+        let is_positive = self.scene_effect_strength >= 0.0;
+        let scene_effect_strength = self.scene_effect_strength.abs();
+        let effect_strength = self.effect_strength.abs();
+
+        let mut strength;
+
+        // go towards scene_effect_strength
+        if self.effect_on
+        {
+            strength = effect_strength + (delta.as_secs_f32() * self.effect_change);
+        }
+        // go towards 0
+        else
+        {
+            strength = effect_strength - (delta.as_secs_f32() * self.effect_change);
+        }
+
+        strength = strength.clamp(0.0, scene_effect_strength);
+
+        if !is_positive
+        {
+            strength = -strength;
+        }
+
+        self.effect_strength = strength;
+
+        RenderResult::OutOfDate
+    }
+
+    pub fn set_effect(&mut self, on: bool)
+    {
+        self.effect_on = on;
+    }
+
+    pub fn toggle_effect(&mut self)
+    {
+        self.effect_on = !self.effect_on;
     }
 }
