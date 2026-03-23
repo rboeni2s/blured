@@ -218,7 +218,7 @@ pub fn create_bind_group<T>(
     // Put the buffer in a bind group
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: None,
-        layout: layout,
+        layout,
         entries: &[wgpu::BindGroupEntry {
             binding: 0,
             resource: buffer.as_entire_binding(),

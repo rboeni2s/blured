@@ -170,7 +170,7 @@ impl RendererImpl
             &self.device,
             &self.queue,
             &self.scene_pipeline.output_texture,
-            &scene,
+            scene,
             &texture_view,
             self.effect_strength,
         );

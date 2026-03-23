@@ -259,7 +259,7 @@ impl EffectPipeline
 
         let texture_bind_group = self
             .texture_bind_group_layout
-            .create_bind_group(device, &output);
+            .create_bind_group(device, output);
 
         // vec2 with x: current strength, y: maximum strength
         let strength = [effect_strength, scene.effect_strength];
