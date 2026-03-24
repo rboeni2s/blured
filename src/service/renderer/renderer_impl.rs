@@ -35,6 +35,7 @@ pub struct RendererImpl
     effect_on: bool,
     scene_effect_strength: f32,
     effect_change: f32,
+    elapsed_time: f32,
 }
 
 
@@ -123,11 +124,13 @@ impl RendererImpl
             scene_effect_strength,
             effect_on: false,
             effect_change: (scene_effect_strength / EFFECT_TRANSITION_SECS).abs(),
+            elapsed_time: 0.0,
         })
     }
 
     pub fn render(&mut self, delta: Duration) -> anyhow::Result<RenderResult>
     {
+        self.elapsed_time += delta.as_secs_f32();
         let mut render_result = self.adjust_effect_strength(delta);
 
         // Get the surface texture
@@ -171,6 +174,7 @@ impl RendererImpl
             scene,
             &texture_view,
             self.effect_strength,
+            self.elapsed_time,
         );
 
         // If the scene is dynamic, render again on the next frame
@@ -212,7 +216,9 @@ impl RendererImpl
 
         self.scene_index = index;
         self.effect_change = (self.scene_effect_strength / EFFECT_TRANSITION_SECS).abs();
+        self.adjust_effect_strength(Duration::from_millis(0));
         self.scene_out_of_date = true;
+        self.elapsed_time = 0.0;
 
         Ok(index)
     }

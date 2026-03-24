@@ -41,7 +41,7 @@ impl Effect
         {
             // Get guards to the shared builtin pipelines
             Effect::Blur => pipeline.blur_pipeline.clone(),
-            Effect::Neuro => todo!(),
+            Effect::Neuro => pipeline.neuro_pipeline.clone(),
 
             // Load a user supplied wgsl shader from disk
             Effect::Custom(path) =>

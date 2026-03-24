@@ -54,8 +54,8 @@ impl Renderer
             &[
                 ImageSceneDesc {
                     ident: "w1".to_string(),
-                    image_source: include_bytes!("../../../textures/path.jpg").to_vec(),
-                    image_fit: ImageFit::default(),
+                    image_source: include_bytes!("../../../textures/astro_miku.jpg").to_vec(),
+                    effect: image_scene::Effect::Neuro,
                     ..Default::default()
                 },
                 ImageSceneDesc {
@@ -76,7 +76,7 @@ impl Renderer
         // Render if the surface is out of date
         if self.out_of_date.load(Ordering::Acquire)
         {
-            // Don't rerender the scene if it is not dynamic
+            // Don't rerender the scene if it is not out of date
             if self.render(delta)? == RenderResult::Clean
             {
                 // Try to mark the surface as not out of date

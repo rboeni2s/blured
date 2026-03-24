@@ -79,37 +79,13 @@ impl Application
         let mut last_frame_time;
         let mut frame_start = Instant::now();
 
-        //TEST: Scene switching
-        let (mut switcher, mut w2) = (Instant::now(), false);
-        let mut cycles = 0;
-
         while !*self.should_quit.read()
         {
             last_frame_time = frame_start.elapsed();
             frame_start = Instant::now();
 
-            cycles += 1;
-            if cycles == 101
-            {
-                self.renderer.toggle_effect()?;
-                cycles = 0;
-            }
-
             self.wl_client.dispatch(last_frame_time)?;
             self.renderer.dispatch(last_frame_time)?;
-
-            //TEST: Scene switching
-            if !w2 && switcher.elapsed() > Duration::from_secs(30)
-            {
-                self.renderer.switch_scene("w2")?;
-                w2 = true;
-            }
-            else if switcher.elapsed() > Duration::from_secs(60)
-            {
-                self.renderer.switch_scene("w1")?;
-                switcher = Instant::now();
-                w2 = false;
-            }
 
             std::thread::sleep(
                 Duration::from_millis(FRAME_TIME_TARGET_MS).saturating_sub(frame_start.elapsed()),

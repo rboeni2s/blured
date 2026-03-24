@@ -161,6 +161,7 @@ pub struct EffectPipeline
     pub index_buffer: IndexBuffer,
     pub effect_params_layout: wgpu::BindGroupLayout,
     pub strength_layout: wgpu::BindGroupLayout,
+    pub neuro_pipeline: Guard<wgpu::RenderPipeline>,
 }
 
 impl EffectPipeline
@@ -233,7 +234,12 @@ impl EffectPipeline
 
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self
     {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("../../../shader/blur.wgsl"));
+        let blur_shader =
+            device.create_shader_module(wgpu::include_wgsl!("../../../shader/blur.wgsl"));
+
+        let neuro_shader =
+            device.create_shader_module(wgpu::include_wgsl!("../../../shader/neuro.wgsl"));
+
         let texture_bind_group_layout = TextureBindGroupLayout::new(device);
         let effect_data_layout = EffectParams::layout(device);
         let strength_layout = EffectParams::layout(device);
@@ -248,12 +254,16 @@ impl EffectPipeline
             immediate_size: 0,
         });
 
-        let blur_pipeline = Self::create_pipeline_impl(device, &pipeline_layout, format, &shader);
+        let blur_pipeline =
+            Self::create_pipeline_impl(device, &pipeline_layout, format, &blur_shader);
+        let neuro_pipeline =
+            Self::create_pipeline_impl(device, &pipeline_layout, format, &neuro_shader);
         let vertex_buffer = VertexBuffer::new(device, SQUARE_VERTICES);
         let index_buffer = IndexBuffer::new(device, SQUARE_INDICES);
 
         Self {
             blur_pipeline,
+            neuro_pipeline,
             pipeline_layout,
             texture_bind_group_layout,
             vertex_buffer,
@@ -264,6 +274,7 @@ impl EffectPipeline
         }
     }
 
+    #[allow(clippy::too_many_arguments)] // sometimes it just has to be...
     pub fn render_effect(
         &self,
         device: &wgpu::Device,
@@ -272,6 +283,7 @@ impl EffectPipeline
         scene: &ImageScene,
         surface: &wgpu::TextureView,
         effect_strength: f32,
+        elapsed_time: f32,
     )
     {
         // Create a encoder and begin a new render pass with it
@@ -299,7 +311,7 @@ impl EffectPipeline
             .create_bind_group(device, output);
 
         // vec2 with x: current strength, y: maximum strength
-        let strength = [effect_strength, scene.effect_strength];
+        let strength = [effect_strength, scene.effect_strength, elapsed_time];
         let strength = create_bind_group(device, &strength, &self.strength_layout);
 
         renderpass.set_pipeline(&scene.pipeline);

@@ -45,11 +45,6 @@ var<uniform> effect_params: EffectParams;
 var<uniform> effect_data: EffectData;
 
 
-const TAU: f32 = 6.28318530718;
-const DIR: f32 = 64.0;
-const QUA: f32 = 20.0;
-
-
 @vertex
 fn vertex(vert: VertexInput) -> VertexOutput
 {
@@ -63,30 +58,14 @@ fn vertex(vert: VertexInput) -> VertexOutput
 @fragment
 fn fragment(vert: VertexOutput) -> @location(0) vec4<f32>
 {
-    // flip y axis
+    let size = vec2<f32>(textureDimensions(texture));
     var tex = vert.tex;
-    tex.y = 1 - tex.y;
 
-    let size = effect_data.strength;
-    var color = textureSample(texture_diffuse, sampler_diffuse, tex);
+    // correct aspect ratio and center texture coordiantes
+    tex = ((tex*size) - 0.5*size) / size.y;
 
-    if size <= 0.0
-    {
-        return color;
-    }
-    
-    let dims = textureDimensions(texture_diffuse);
-    let radius = vec2<f32>(size, size) / vec2<f32>(dims);
+    // draw the texture coordinates to the screen
+    var color = vec3<f32>(tex, 0.0);
 
-    for (var d=0.0; d<TAU; d+=TAU/DIR)
-    {
-        for (var i=1.0/QUA; i<=1.0; i+=1.0/QUA)
-        {
-            let uv = tex + vec2<f32>(cos(d), sin(d)) * radius * i;
-            color += textureSample(texture_diffuse, sampler_diffuse, uv);    
-        }
-    }
-
-    return color / (QUA * DIR - (250.0 * (size/effect_data.max_strength)));
-}
- 
+    return vec4<f32>(color, 1.0);
+} 
