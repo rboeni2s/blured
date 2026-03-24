@@ -15,3 +15,7 @@ It should display a hardcoded demo of the newest feature that is being worked on
 ```shell
 cargo run -r
 ```
+
+## Gallery
+**Neuro - Abstract Galaxy Shader**
+<video src="https://github.com/user-attachments/assets/6a5a9b92-8269-4627-9a27-8123c7bb798a"/>
