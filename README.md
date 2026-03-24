@@ -10,7 +10,7 @@ The screenshot above shows a blur effect in action!
 Many features are still a work in progress, most notably user configuration.  
 If you still want to check Blured out, you can run the project on any Wayland compositor that supports `wlr-layer-shell` (basically every compositor).
 
-It should display two hardcoded wallpapers with two different stretch modes, switching every 30 seconds while toggling a nice animated blur effect every few seconds.
+It should display a hardcoded demo of the newest feature that is being worked on.
 
 ```shell
 cargo run -r
