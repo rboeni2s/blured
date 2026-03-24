@@ -1,3 +1,5 @@
+use keep::Guard;
+
 use crate::service::renderer::buffer::IndexBuffer;
 use crate::service::renderer::buffer::SQUARE_INDICES;
 use crate::service::renderer::buffer::SQUARE_VERTICES;
@@ -149,7 +151,11 @@ impl ScenePipeline
 
 pub struct EffectPipeline
 {
-    pub pipeline: wgpu::RenderPipeline,
+    // Shared pipelines
+    pub blur_pipeline: Guard<wgpu::RenderPipeline>,
+
+    pub pipeline_layout: wgpu::PipelineLayout,
+    pub format: wgpu::TextureFormat,
     pub texture_bind_group_layout: TextureBindGroupLayout,
     pub vertex_buffer: VertexBuffer<'static>,
     pub index_buffer: IndexBuffer,
@@ -159,6 +165,72 @@ pub struct EffectPipeline
 
 impl EffectPipeline
 {
+    pub fn create_pipeline(
+        &self,
+        device: &wgpu::Device,
+        shader: &wgpu::ShaderModule,
+    ) -> anyhow::Result<Guard<wgpu::RenderPipeline>>
+    {
+        let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let pipeline =
+            Self::create_pipeline_impl(device, &self.pipeline_layout, self.format, shader);
+
+        if let Some(e) = pollster::block_on(scope.pop())
+        {
+            return Err(e.into());
+        }
+
+        Ok(pipeline)
+    }
+
+    fn create_pipeline_impl(
+        device: &wgpu::Device,
+        layout: &wgpu::PipelineLayout,
+        format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+    ) -> Guard<wgpu::RenderPipeline>
+    {
+        device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: None,
+                layout: Some(layout),
+                vertex: wgpu::VertexState {
+                    module: shader,
+                    entry_point: Some("vertex"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    buffers: &[VertexBuffer::default_layout()],
+                },
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: None,
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: shader,
+                    entry_point: Some("fragment"),
+                    compilation_options: wgpu::PipelineCompilationOptions::default(),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                }),
+                multiview_mask: None,
+                cache: None,
+            })
+            .into()
+    }
+
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self
     {
         let shader = device.create_shader_module(wgpu::include_wgsl!("../../../shader/blur.wgsl"));
@@ -176,54 +248,19 @@ impl EffectPipeline
             immediate_size: 0,
         });
 
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: None,
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vertex"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[VertexBuffer::default_layout()],
-            },
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                unclipped_depth: false,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fragment"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-
+        let blur_pipeline = Self::create_pipeline_impl(device, &pipeline_layout, format, &shader);
         let vertex_buffer = VertexBuffer::new(device, SQUARE_VERTICES);
         let index_buffer = IndexBuffer::new(device, SQUARE_INDICES);
 
         Self {
-            pipeline,
+            blur_pipeline,
+            pipeline_layout,
             texture_bind_group_layout,
             vertex_buffer,
             index_buffer,
             effect_params_layout: effect_data_layout,
             strength_layout,
+            format,
         }
     }
 
@@ -265,7 +302,7 @@ impl EffectPipeline
         let strength = [effect_strength, scene.effect_strength];
         let strength = create_bind_group(device, &strength, &self.strength_layout);
 
-        renderpass.set_pipeline(&self.pipeline);
+        renderpass.set_pipeline(&scene.pipeline);
         renderpass.set_bind_group(0, &texture_bind_group, &[]);
         renderpass.set_bind_group(1, &scene.effect_params_bind_group, &[]);
         renderpass.set_bind_group(2, &strength, &[]);

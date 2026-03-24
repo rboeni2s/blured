@@ -1,7 +1,9 @@
 use crate::service::renderer::{
     buffer::{IndexBuffer, Vertex, VertexBuffer, create_bind_group},
-    texture::{AsocTexture, Image, TextureBindGroupLayout},
+    pipelines::{EffectPipeline, ScenePipeline},
+    texture::{AsocTexture, Image},
 };
+use keep::Guard;
 use wgpu::BindGroupLayoutEntry;
 
 
@@ -14,6 +16,53 @@ pub enum ImageFit
     #[default]
     FillV,
     Original,
+}
+
+
+#[allow(unused)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Effect
+{
+    Blur,
+    Neuro,
+    Custom(String),
+}
+
+
+impl Effect
+{
+    pub fn fetch_pipeline(
+        &self,
+        device: &wgpu::Device,
+        pipeline: &EffectPipeline,
+    ) -> anyhow::Result<Guard<wgpu::RenderPipeline>>
+    {
+        Ok(match self
+        {
+            // Get guards to the shared builtin pipelines
+            Effect::Blur => pipeline.blur_pipeline.clone(),
+            Effect::Neuro => todo!(),
+
+            // Load a user supplied wgsl shader from disk
+            Effect::Custom(path) =>
+            {
+                let data = std::fs::read_to_string(path)?;
+                let scope_guard = device.push_error_scope(wgpu::ErrorFilter::Validation);
+
+                let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("User Shader Module"),
+                    source: wgpu::ShaderSource::Wgsl(data.into()),
+                });
+
+                if let Some(error) = pollster::block_on(scope_guard.pop())
+                {
+                    return Err(error.into());
+                }
+
+                pipeline.create_pipeline(device, &shader)?
+            }
+        })
+    }
 }
 
 
@@ -69,9 +118,9 @@ pub struct ImageScene
     pub texture_bind_group: wgpu::BindGroup,
     pub background_bind_group: wgpu::BindGroup,
     pub effect_params_bind_group: wgpu::BindGroup,
-    // pub effect_params: EffectParams,
     pub effect_strength: f32,
     pub dynamic: bool,
+    pub pipeline: Guard<wgpu::RenderPipeline>,
 }
 
 
@@ -81,9 +130,8 @@ impl ImageScene
         desc: &ImageSceneDesc,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        background_layout: &wgpu::BindGroupLayout,
-        texture_layout: &TextureBindGroupLayout,
-        effect_params_layout: &wgpu::BindGroupLayout,
+        scene_pipeline: &ScenePipeline,
+        effect_pipeline: &EffectPipeline,
         (surface_width, surface_height): (u32, u32),
     ) -> anyhow::Result<Self>
     {
@@ -107,22 +155,34 @@ impl ImageScene
         let background_verts = make_background(surface_width, surface_height);
         let verts = [image_verts, background_verts];
 
-        let background_bind_group = create_bind_group(device, &desc.background, background_layout);
-        let effect_params_bind_group =
-            create_bind_group(device, &desc.effect_params, effect_params_layout);
+        let background_bind_group = create_bind_group(
+            device,
+            &desc.background,
+            &scene_pipeline.color_bind_group_layout,
+        );
+        let effect_params_bind_group = create_bind_group(
+            device,
+            &desc.effect_params,
+            &effect_pipeline.effect_params_layout,
+        );
 
         let texture = AsocTexture::from_image(device, queue, image);
+
+        // Force dynamic rendering on certain effects.
+        let dynamic = desc.dynamic || desc.effect == Effect::Neuro;
 
         Ok(Self {
             ident: desc.ident.clone(),
             vertex_buffer: VertexBuffer::new(device, verts.as_flattened()),
             index_buffer: IndexBuffer::new(device, &INDICES),
-            texture_bind_group: texture_layout.create_bind_group(device, texture.texture()),
+            texture_bind_group: scene_pipeline
+                .texture_bind_group_layout
+                .create_bind_group(device, texture.texture()),
             background_bind_group,
             effect_params_bind_group,
-            dynamic: desc.dynamic,
-            // effect_params: desc.effect_params.clone(),
+            dynamic,
             effect_strength: desc.effect_strength,
+            pipeline: desc.effect.fetch_pipeline(device, effect_pipeline)?,
         })
     }
 
@@ -146,6 +206,7 @@ pub struct ImageSceneDesc
     pub dynamic: bool,
     pub effect_params: EffectParams,
     pub effect_strength: f32,
+    pub effect: Effect,
 }
 
 
@@ -155,9 +216,8 @@ impl ImageSceneDesc
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        background_layout: &wgpu::BindGroupLayout,
-        texture_layout: &TextureBindGroupLayout,
-        effect_layout: &wgpu::BindGroupLayout,
+        scene_pipeline: &ScenePipeline,
+        effect_pipeline: &EffectPipeline,
         surface_size: (u32, u32),
     ) -> anyhow::Result<ImageScene>
     {
@@ -165,9 +225,8 @@ impl ImageSceneDesc
             self,
             device,
             queue,
-            background_layout,
-            texture_layout,
-            effect_layout,
+            scene_pipeline,
+            effect_pipeline,
             surface_size,
         )
     }
@@ -186,6 +245,7 @@ impl Default for ImageSceneDesc
             dynamic: false,
             effect_params: EffectParams::default(),
             effect_strength: 50.0,
+            effect: Effect::Blur,
         }
     }
 }

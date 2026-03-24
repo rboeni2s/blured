@@ -89,9 +89,8 @@ impl RendererImpl
             scenes.push(desc.load(
                 &device,
                 &queue,
-                &scene_pipeline.color_bind_group_layout,
-                &scene_pipeline.texture_bind_group_layout,
-                &effect_pipeline.effect_params_layout,
+                &scene_pipeline,
+                &effect_pipeline,
                 window_handle.surface_size,
             )?);
         }
@@ -99,9 +98,8 @@ impl RendererImpl
         let default_scene = ImageSceneDesc::default().load(
             &device,
             &queue,
-            &scene_pipeline.color_bind_group_layout,
-            &scene_pipeline.texture_bind_group_layout,
-            &effect_pipeline.effect_params_layout,
+            &scene_pipeline,
+            &effect_pipeline,
             window_handle.surface_size,
         )?;
 
