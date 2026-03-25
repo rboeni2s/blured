@@ -18,4 +18,4 @@ cargo run -r
 
 ## Gallery
 **Neuro - Abstract Galaxy Shader**
-<video src="https://github.com/user-attachments/assets/6a5a9b92-8269-4627-9a27-8123c7bb798a"/>
+<video src="https://github.com/user-attachments/assets/c88db0f6-1f1e-4b77-8132-29d0986047b8" loop muted/>
