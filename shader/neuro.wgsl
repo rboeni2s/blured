@@ -1,3 +1,7 @@
+/// This shader's idea and implementation is adopted from this shadertoy:
+/// https://www.shadertoy.com/view/lscczl
+
+
 struct VertexInput
 {
     @location(0) pos: vec3<f32>,
@@ -96,18 +100,19 @@ fn rand2(p: vec2<f32>) -> vec2<f32>
 }
 
 
-const SCALE: f32 = 15.0;
+const SCALE: f32 = 2.8; // 1.6
 const SPEED: f32 = 0.4;
-const DIM: f32 = 21.0;
-const AMBIENT: f32 = 0.001;
+const DIM: f32 = 17.0;
+const AMBIENT: f32 = 0.3;
 
 
 // Draws a line between a and b this line will fade based on its length
-fn line(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> vec3<f32>
+fn line(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32
 {
     let sdf = line_sdf(p, a, b);
-    let line = vec3(smoothstep(0.01, 0.005, sdf));
-    return line * smoothstep(1.2, 0.8, length(a-b));
+    let line = smoothstep(0.01, 0.005, sdf);
+    let ba = length(a-b);
+    return line * (smoothstep(1.2, 0.8, ba) * 0.5 + smoothstep(0.05, 0.03, abs(ba - 0.75)));
 }
 
 
@@ -120,19 +125,18 @@ fn grid_point(grid_cell: vec2<f32>, tex_grid: vec2<f32>, dist: f32) -> vec2<f32>
 }
 
 
-/// Draws the effect
-fn effect(tex: vec2<f32>) -> vec3<f32> 
+/// Draws one layer of the neuro effect
+fn draw_layer(tex: vec2<f32>, scale: f32, offset: f32) -> f32
 {
-    var scale = SCALE;
-    var color = vec3(AMBIENT);
-    let tex_grid = fract(scale * tex) - 0.5;
-    let grid_cell = floor(scale * tex);
+    var color = 0.0;
+    let coord = ((tex * scale) + offset);
+    let tex_grid = fract(coord) - 0.5;
+    let grid_cell = floor(coord);
 
     // put a random point in each cell
     let point_origin = grid_point(grid_cell, tex_grid, 0.39);
 
     // get the position of each neighbouring point, and draw a line to the neighbours
-    var lines = vec3(0.0);
     var neighbours: array<vec2<f32>, 9>;
     var neighbour_index = 0;
     for (var y=-1.0; y<=1.0; y+=1)
@@ -143,31 +147,45 @@ fn effect(tex: vec2<f32>) -> vec3<f32>
             neighbours[neighbour_index] = offset + grid_point(grid_cell + offset, tex_grid, 0.39);
 
             // draw a line from the center point to its neighbour
-            lines += line(tex_grid, point_origin, neighbours[neighbour_index]);
+            color += line(tex_grid, point_origin, neighbours[neighbour_index]);
 
             // draw a light at the end of each line
             let light_dist = (neighbours[neighbour_index] - tex_grid) * DIM;
-            lines += 1.0 / dot(light_dist, light_dist);
+            let light = 1.0 / dot(light_dist, light_dist);
+            color += light * (sin((effect_data.time * 8.0 * SPEED) + (fract(neighbours[neighbour_index].x) * 10.0)) * 0.5 + 1.0);
                         
             neighbour_index += 1;
         }
     }
 
     // fix interrupted lines
-    lines += line(tex_grid, neighbours[1], neighbours[3]);
-    lines += line(tex_grid, neighbours[1], neighbours[5]);
-    lines += line(tex_grid, neighbours[7], neighbours[3]);
-    lines += line(tex_grid, neighbours[7], neighbours[5]);
-
-    color += lines;
-  
-
-    // draw the tex grid for debugging
-    // if tex_grid.x > 0.49 || tex_grid.y > 0.49
-    // {
-    //     color = vec3(0.0, 1.0, 0.0);
-    // }
+    color += line(tex_grid, neighbours[1], neighbours[3]);
+    color += line(tex_grid, neighbours[1], neighbours[5]);
+    color += line(tex_grid, neighbours[7], neighbours[3]);
+    color += line(tex_grid, neighbours[7], neighbours[5]);
 
     return color;
 }
- 
+
+
+/// Draws the effect
+fn effect(tex: vec2<f32>) -> vec3<f32> 
+{
+    var color = vec3(AMBIENT);
+    var layers = 0.0;
+
+    // Rotate all layers
+    let s = sin(effect_data.time * 0.02 * -SPEED);
+    let c = cos(effect_data.time * 0.02 * -SPEED);
+    let rot = tex * mat2x2(c, -s, s, c);
+
+    for (var i=0.0; i<=1.0; i+=0.25)
+    {
+        let z = fract(i + effect_data.time * SPEED * 0.08);
+        let fade = smoothstep(0.0, 0.5, z) * smoothstep(1.0, 0.8, z);
+        let size = mix(10.0, 0.5, z);
+        layers += draw_layer(rot, SCALE*size, i*20.0) * fade;
+    }
+    
+    return color * layers;
+}
