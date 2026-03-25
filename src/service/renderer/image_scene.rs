@@ -20,12 +20,79 @@ pub enum ImageFit
 
 
 #[allow(unused)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Effect
 {
-    Blur,
-    Neuro,
+    Blur(BlurSettings),
+    Neuro(NeuroSettings),
     Custom(String),
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BlurSettings
+{
+    quality: f32,
+    directions: f32,
+}
+
+impl Default for BlurSettings
+{
+    fn default() -> Self
+    {
+        Self {
+            quality: 64.0,
+            directions: 20.0,
+        }
+    }
+}
+
+
+impl From<&BlurSettings> for EffectParams
+{
+    fn from(value: &BlurSettings) -> Self
+    {
+        EffectParams {
+            param_a: [value.quality, value.directions, 0.0, 0.0],
+            ..Default::default()
+        }
+    }
+}
+
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct NeuroSettings
+{
+    scale: f32,
+    speed: f32,
+    dim: f32,
+    ambient: f32,
+}
+
+
+impl From<&NeuroSettings> for EffectParams
+{
+    fn from(value: &NeuroSettings) -> Self
+    {
+        EffectParams {
+            param_a: [value.scale, value.speed, value.dim, value.ambient],
+            ..Default::default()
+        }
+    }
+}
+
+
+impl Default for NeuroSettings
+{
+    fn default() -> Self
+    {
+        Self {
+            scale: 2.8,
+            speed: 0.4,
+            dim: 17.0,
+            ambient: 0.3,
+        }
+    }
 }
 
 
@@ -35,13 +102,14 @@ impl Effect
         &self,
         device: &wgpu::Device,
         pipeline: &EffectPipeline,
-    ) -> anyhow::Result<Guard<wgpu::RenderPipeline>>
+        effect_params: &EffectParams,
+    ) -> anyhow::Result<(Guard<wgpu::RenderPipeline>, EffectParams)>
     {
         Ok(match self
         {
             // Get guards to the shared builtin pipelines
-            Effect::Blur => pipeline.blur_pipeline.clone(),
-            Effect::Neuro => pipeline.neuro_pipeline.clone(),
+            Effect::Blur(settings) => (pipeline.blur_pipeline.clone(), settings.into()),
+            Effect::Neuro(settings) => (pipeline.neuro_pipeline.clone(), settings.into()),
 
             // Load a user supplied wgsl shader from disk
             Effect::Custom(path) =>
@@ -59,7 +127,10 @@ impl Effect
                     return Err(error.into());
                 }
 
-                pipeline.create_pipeline(device, &shader)?
+                (
+                    pipeline.create_pipeline(device, &shader)?,
+                    effect_params.clone(),
+                )
             }
         })
     }
@@ -160,16 +231,21 @@ impl ImageScene
             &desc.background,
             &scene_pipeline.color_bind_group_layout,
         );
+
+        let (pipeline, effect_params) =
+            desc.effect
+                .fetch_pipeline(device, effect_pipeline, &desc.effect_params)?;
+
         let effect_params_bind_group = create_bind_group(
             device,
-            &desc.effect_params,
+            &effect_params,
             &effect_pipeline.effect_params_layout,
         );
 
         let texture = AsocTexture::from_image(device, queue, image);
 
         // Force dynamic rendering on certain effects.
-        let dynamic = desc.dynamic || desc.effect == Effect::Neuro;
+        let dynamic = desc.dynamic || matches!(desc.effect, Effect::Neuro(_));
 
         Ok(Self {
             ident: desc.ident.clone(),
@@ -182,7 +258,7 @@ impl ImageScene
             effect_params_bind_group,
             dynamic,
             effect_strength: desc.effect_strength,
-            pipeline: desc.effect.fetch_pipeline(device, effect_pipeline)?,
+            pipeline,
         })
     }
 
@@ -245,7 +321,7 @@ impl Default for ImageSceneDesc
             dynamic: false,
             effect_params: EffectParams::default(),
             effect_strength: 50.0,
-            effect: Effect::Blur,
+            effect: Effect::Blur(BlurSettings::default()),
         }
     }
 }

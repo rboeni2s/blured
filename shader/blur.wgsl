@@ -11,10 +11,14 @@ struct VertexOutput
     @location(0) tex: vec2<f32>,  
 }
 
-
+// Default EffectParams settings
+// quality: f32 = 64.0;
+// directions: f32 = 20.0;
 struct EffectParams
 {
-    param_a: vec4<f32>,
+    directions: f32,
+    quality: f32,
+    padding: vec2<f32>,
     param_b: vec4<f32>,
     param_c: vec4<f32>,
 }
@@ -46,9 +50,6 @@ var<uniform> effect_data: EffectData;
 
 
 const TAU: f32 = 6.28318530718;
-const DIR: f32 = 64.0;
-const QUA: f32 = 20.0;
-
 
 @vertex
 fn vertex(vert: VertexInput) -> VertexOutput
@@ -78,15 +79,15 @@ fn fragment(vert: VertexOutput) -> @location(0) vec4<f32>
     let dims = textureDimensions(texture_diffuse);
     let radius = vec2<f32>(size, size) / vec2<f32>(dims);
 
-    for (var d=0.0; d<TAU; d+=TAU/DIR)
+    for (var d=0.0; d<TAU; d+=TAU/effect_params.directions)
     {
-        for (var i=1.0/QUA; i<=1.0; i+=1.0/QUA)
+        for (var i=1.0/effect_params.quality; i<=1.0; i+=1.0/effect_params.quality)
         {
             let uv = tex + vec2<f32>(cos(d), sin(d)) * radius * i;
             color += textureSample(texture_diffuse, sampler_diffuse, uv);    
         }
     }
 
-    return color / (QUA * DIR - (250.0 * (size/effect_data.max_strength)));
+    return color / (effect_params.quality * effect_params.directions - (250.0 * (size/effect_data.max_strength)));
 }
- 
+

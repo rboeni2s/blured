@@ -17,7 +17,7 @@ use std::{
 use crate::service::{
     application::AppEvent,
     renderer::{
-        image_scene::{ImageFit, ImageSceneDesc},
+        image_scene::{ImageFit, ImageSceneDesc, NeuroSettings},
         renderer_impl::RendererImpl,
     },
     wlclient::WindowHandle,
@@ -55,13 +55,13 @@ impl Renderer
                 ImageSceneDesc {
                     ident: "w1".to_string(),
                     image_source: include_bytes!("../../../textures/astro_miku.jpg").to_vec(),
-                    effect: image_scene::Effect::Neuro,
+                    effect: image_scene::Effect::Neuro(NeuroSettings::default()),
                     ..Default::default()
                 },
                 ImageSceneDesc {
                     ident: "w2".to_string(),
-                    image_source: include_bytes!("../../../textures/swirls.jpg").to_vec(),
-                    image_fit: ImageFit::Stretch,
+                    image_source: include_bytes!("../../../textures/path.jpg").to_vec(),
+                    image_fit: ImageFit::FillV,
                     ..Default::default()
                 },
             ],

@@ -15,10 +15,17 @@ struct VertexOutput
     @location(0) tex: vec2<f32>,  
 }
 
-
+// EffectParams default values
+// effect_params.scale: f32 = 2.8; // 1.6
+// effect_params.speed: f32 = 0.4;
+// effect_params.dim: f32 = 17.0;
+// effect_params.ambient: f32 = 0.3;
 struct EffectParams
 {
-    param_a: vec4<f32>,
+    scale: f32,
+    speed: f32,
+    dim: f32,
+    ambient: f32,
     param_b: vec4<f32>,
     param_c: vec4<f32>,
 }
@@ -100,12 +107,6 @@ fn rand2(p: vec2<f32>) -> vec2<f32>
 }
 
 
-const SCALE: f32 = 2.8; // 1.6
-const SPEED: f32 = 0.4;
-const DIM: f32 = 17.0;
-const AMBIENT: f32 = 0.3;
-
-
 // Draws a line between a and b this line will fade based on its length
 fn line(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32
 {
@@ -121,7 +122,7 @@ fn line(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32
 fn grid_point(grid_cell: vec2<f32>, tex_grid: vec2<f32>, dist: f32) -> vec2<f32>
 {
     let noise = rand2(grid_cell);
-    return sin(noise * (effect_data.time*SPEED + 5.0)) * dist;
+    return sin(noise * (effect_data.time*effect_params.speed + 5.0)) * dist;
 }
 
 
@@ -150,9 +151,9 @@ fn draw_layer(tex: vec2<f32>, scale: f32, offset: f32) -> f32
             color += line(tex_grid, point_origin, neighbours[neighbour_index]);
 
             // draw a light at the end of each line
-            let light_dist = (neighbours[neighbour_index] - tex_grid) * DIM;
+            let light_dist = (neighbours[neighbour_index] - tex_grid) * effect_params.dim;
             let light = 1.0 / dot(light_dist, light_dist);
-            color += light * (sin((effect_data.time * 8.0 * SPEED) + (fract(neighbours[neighbour_index].x) * 10.0)) * 0.5 + 1.0);
+            color += light * (sin((effect_data.time * 8.0 * effect_params.speed) + (fract(neighbours[neighbour_index].x) * 10.0)) * 0.5 + 1.0);
                         
             neighbour_index += 1;
         }
@@ -171,20 +172,20 @@ fn draw_layer(tex: vec2<f32>, scale: f32, offset: f32) -> f32
 /// Draws the effect
 fn effect(tex: vec2<f32>) -> vec3<f32> 
 {
-    var color = vec3(AMBIENT);
+    var color = vec3(effect_params.ambient);
     var layers = 0.0;
 
     // Rotate all layers
-    let s = sin(effect_data.time * 0.02 * -SPEED);
-    let c = cos(effect_data.time * 0.02 * -SPEED);
+    let s = sin(effect_data.time * 0.02 * -effect_params.speed);
+    let c = cos(effect_data.time * 0.02 * -effect_params.speed);
     let rot = tex * mat2x2(c, -s, s, c);
 
     for (var i=0.0; i<=1.0; i+=0.25)
     {
-        let z = fract(i + effect_data.time * SPEED * 0.08);
+        let z = fract(i + effect_data.time * effect_params.speed * 0.08);
         let fade = smoothstep(0.0, 0.5, z) * smoothstep(1.0, 0.8, z);
         let size = mix(10.0, 0.5, z);
-        layers += draw_layer(rot, SCALE*size, i*20.0) * fade;
+        layers += draw_layer(rot, effect_params.scale*size, i*20.0) * fade;
     }
     
     return color * layers;
