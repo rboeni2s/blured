@@ -28,6 +28,7 @@ pub enum Effect
 
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct BlurSettings
 {
     pub quality: f32,
@@ -48,6 +49,7 @@ impl Default for BlurSettings
 
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct NeuroSettings
 {
     pub scale: f32,
@@ -184,14 +186,14 @@ impl Default for ImageSceneDesc
     fn default() -> Self
     {
         Self {
-            ident: "default".into(),
+            ident: "builtin".into(),
             image_source: include_bytes!("../textures/astro_miku.jpg").to_vec(),
             image_fit: Default::default(),
             background: [0.055 * 0.5, 0.12 * 0.5, 0.2 * 0.5],
             dynamic: false,
             effect_params: EffectParams::default(),
             effect_strength: 50.0,
-            effect: Effect::Blur(BlurSettings::default()),
+            effect: Effect::Neuro(NeuroSettings::default()),
         }
     }
 }
