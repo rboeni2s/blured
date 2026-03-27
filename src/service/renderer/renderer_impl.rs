@@ -1,12 +1,15 @@
 use std::time::Duration;
 
-use crate::service::{
-    renderer::{
-        RenderResult,
-        image_scene::{ImageScene, ImageSceneDesc},
-        pipelines::{EffectPipeline, ScenePipeline},
+use crate::{
+    scene_desc::ImageSceneDesc,
+    service::{
+        renderer::{
+            RenderResult,
+            image_scene::ImageScene,
+            pipelines::{EffectPipeline, ScenePipeline},
+        },
+        wlclient::WindowHandle,
     },
-    wlclient::WindowHandle,
 };
 use anyhow::Context;
 

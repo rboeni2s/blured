@@ -1,9 +1,9 @@
-mod buffer;
-mod camera;
-mod image_scene;
-mod pipelines;
-mod renderer_impl;
-mod texture;
+pub mod buffer;
+pub mod camera;
+pub mod image_scene;
+pub mod pipelines;
+pub mod renderer_impl;
+pub mod texture;
 
 
 use std::{
@@ -14,12 +14,10 @@ use std::{
     time::Duration,
 };
 
+use crate::scene_desc::{Effect, ImageFit, ImageSceneDesc, NeuroSettings};
 use crate::service::{
     application::AppEvent,
-    renderer::{
-        image_scene::{ImageFit, ImageSceneDesc, NeuroSettings},
-        renderer_impl::RendererImpl,
-    },
+    renderer::renderer_impl::RendererImpl,
     wlclient::WindowHandle,
 };
 use anyhow::Context;
@@ -55,7 +53,7 @@ impl Renderer
                 ImageSceneDesc {
                     ident: "w1".to_string(),
                     image_source: include_bytes!("../../../textures/astro_miku.jpg").to_vec(),
-                    effect: image_scene::Effect::Neuro(NeuroSettings::default()),
+                    effect: Effect::Neuro(NeuroSettings::default()),
                     ..Default::default()
                 },
                 ImageSceneDesc {
