@@ -1,12 +1,15 @@
 use std::time::Duration;
 
-use crate::service::{
-    renderer::{
-        RenderResult,
-        image_scene::{ImageScene, ImageSceneDesc},
-        pipelines::{EffectPipeline, ScenePipeline},
+use crate::{
+    scene_desc::ImageSceneDesc,
+    service::{
+        renderer::{
+            RenderResult,
+            image_scene::ImageScene,
+            pipelines::{EffectPipeline, ScenePipeline},
+        },
+        wlclient::WindowHandle,
     },
-    wlclient::WindowHandle,
 };
 use anyhow::Context;
 
@@ -268,5 +271,18 @@ impl RendererImpl
     pub fn toggle_effect(&mut self)
     {
         self.effect_on = !self.effect_on;
+    }
+
+    pub fn next_scene(&mut self) -> anyhow::Result<usize>
+    {
+        let next_index = (self.scene_index + 1) % self.scenes.len();
+
+        let ident = match self.scenes.get(next_index)
+        {
+            Some(scene) => scene.ident.clone(),
+            _ => return Err(anyhow::Error::msg("No scenes")),
+        };
+
+        self.switch_scene(&ident)
     }
 }

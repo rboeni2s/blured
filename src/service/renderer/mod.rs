@@ -1,9 +1,9 @@
-mod buffer;
-mod camera;
-mod image_scene;
-mod pipelines;
-mod renderer_impl;
-mod texture;
+pub mod buffer;
+pub mod camera;
+pub mod image_scene;
+pub mod pipelines;
+pub mod renderer_impl;
+pub mod texture;
 
 
 use std::{
@@ -14,12 +14,10 @@ use std::{
     time::Duration,
 };
 
+use crate::service::config::Config;
 use crate::service::{
     application::AppEvent,
-    renderer::{
-        image_scene::{ImageFit, ImageSceneDesc, NeuroSettings},
-        renderer_impl::RendererImpl,
-    },
+    renderer::renderer_impl::RendererImpl,
     wlclient::WindowHandle,
 };
 use anyhow::Context;
@@ -37,6 +35,9 @@ pub enum RenderResult
 #[service]
 pub struct Renderer<AppEvent>
 {
+    #[layer]
+    config: Config,
+
     #[value = None.into()]
     renderer: Mutex<Option<RendererImpl>>,
 
@@ -49,24 +50,8 @@ impl Renderer
 {
     pub fn init(&self, window_handle: WindowHandle) -> anyhow::Result<()>
     {
-        *self.renderer.lock() = Some(RendererImpl::new(
-            window_handle,
-            &[
-                ImageSceneDesc {
-                    ident: "w1".to_string(),
-                    image_source: include_bytes!("../../../textures/astro_miku.jpg").to_vec(),
-                    effect: image_scene::Effect::Neuro(NeuroSettings::default()),
-                    ..Default::default()
-                },
-                ImageSceneDesc {
-                    ident: "w2".to_string(),
-                    image_source: include_bytes!("../../../textures/path.jpg").to_vec(),
-                    image_fit: ImageFit::FillV,
-                    ..Default::default()
-                },
-            ],
-        )?);
-
+        let scenes = self.config.get_scene_desc();
+        *self.renderer.lock() = Some(RendererImpl::new(window_handle, &scenes)?);
         self.out_of_date.store(true, Ordering::Relaxed);
         Ok(())
     }
@@ -89,6 +74,18 @@ impl Renderer
             }
         }
 
+        Ok(())
+    }
+
+    pub fn next_scene(&self) -> anyhow::Result<()>
+    {
+        self.renderer
+            .lock()
+            .as_mut()
+            .context("Renderer was not initialized")?
+            .next_scene()?;
+
+        self.out_of_date.store(true, Ordering::Relaxed);
         Ok(())
     }
 

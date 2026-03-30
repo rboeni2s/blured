@@ -1,0 +1,23 @@
+# This config demonstrates the usage of custom effect types
+###########################################################
+
+[[scene]]
+name = "custom_effect"
+
+# Set the effect type to custom and load the "dotted" custom shader
+effect.custom = "~/.config/blured/shader/dotted.wgsl"
+
+# The dotted shader should be marked a dynamic because it is
+# not a static effect. That is because it is rotating.
+dynamic = true
+
+# These params control various attributes defined by the shader.
+# The effect params are just passed to the shader and the shader
+# controls how it is using each value
+effect_params = {
+  # Param A is mapped to: [scale, speed, ignored, ignored]
+  param_a = [60.0, 0.06, 0.0, 0.0],
+  # Param B is mapped to: background color as [r, g, b, a] where each color is in the range of 0.0 to 1.0
+  param_b = [0.001, 0.001, 0.02, 1.0],
+}
+

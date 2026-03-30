@@ -11,9 +11,14 @@ image = "0.25.10"
 keep = { git = "https://github.com/rboeni2s/keep.git", version = "0.1.0" }
 log = "0.4.29"
 plug = { git = "https://github.com/rboeni2s/keep.git", version = "0.1.0" }
+plugmap = { git = "https://github.com/rboeni2s/keep.git", version = "0.1.0" }
 pollster = "0.4.0"
 raw-window-handle = "0.6.2"
+serde = { version = "1.0.228", features = ["derive"] }
+serde-kdl2 = "0.1.0"
+shellexpand = "3.1.2"
 tempfile = "3.27.0"
+toml = "1.1.0"
 wayland-client = { version = "0.31.13", features = ["log", "system"] }
 wayland-protocols = "0.32.11"
 wayland-protocols-wlr = { version = "0.3.11", features = ["client"] }

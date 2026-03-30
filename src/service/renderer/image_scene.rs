@@ -1,144 +1,18 @@
-use crate::service::renderer::{
-    buffer::{IndexBuffer, Vertex, VertexBuffer, create_bind_group},
-    pipelines::{EffectPipeline, ScenePipeline},
-    texture::{AsocTexture, Image},
+use crate::{
+    scene_desc::{ImageFit, ImageSceneDesc},
+    service::renderer::{
+        buffer::{IndexBuffer, Vertex, VertexBuffer, create_bind_group},
+        pipelines::{EffectPipeline, ScenePipeline},
+        texture::{AsocTexture, Image},
+    },
 };
 use keep::Guard;
 use wgpu::BindGroupLayoutEntry;
 
 
-#[allow(unused)]
-#[derive(Default, Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ImageFit
-{
-    Stretch,
-    FillH,
-    #[default]
-    FillV,
-    Original,
-}
-
-
-#[allow(unused)]
-#[derive(Debug, Clone, PartialEq)]
-pub enum Effect
-{
-    Blur(BlurSettings),
-    Neuro(NeuroSettings),
-    Custom(String),
-}
-
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct BlurSettings
-{
-    quality: f32,
-    directions: f32,
-}
-
-impl Default for BlurSettings
-{
-    fn default() -> Self
-    {
-        Self {
-            quality: 64.0,
-            directions: 20.0,
-        }
-    }
-}
-
-
-impl From<&BlurSettings> for EffectParams
-{
-    fn from(value: &BlurSettings) -> Self
-    {
-        EffectParams {
-            param_a: [value.quality, value.directions, 0.0, 0.0],
-            ..Default::default()
-        }
-    }
-}
-
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct NeuroSettings
-{
-    scale: f32,
-    speed: f32,
-    dim: f32,
-    ambient: f32,
-}
-
-
-impl From<&NeuroSettings> for EffectParams
-{
-    fn from(value: &NeuroSettings) -> Self
-    {
-        EffectParams {
-            param_a: [value.scale, value.speed, value.dim, value.ambient],
-            ..Default::default()
-        }
-    }
-}
-
-
-impl Default for NeuroSettings
-{
-    fn default() -> Self
-    {
-        Self {
-            scale: 2.8,
-            speed: 0.4,
-            dim: 17.0,
-            ambient: 0.3,
-        }
-    }
-}
-
-
-impl Effect
-{
-    pub fn fetch_pipeline(
-        &self,
-        device: &wgpu::Device,
-        pipeline: &EffectPipeline,
-        effect_params: &EffectParams,
-    ) -> anyhow::Result<(Guard<wgpu::RenderPipeline>, EffectParams)>
-    {
-        Ok(match self
-        {
-            // Get guards to the shared builtin pipelines
-            Effect::Blur(settings) => (pipeline.blur_pipeline.clone(), settings.into()),
-            Effect::Neuro(settings) => (pipeline.neuro_pipeline.clone(), settings.into()),
-
-            // Load a user supplied wgsl shader from disk
-            Effect::Custom(path) =>
-            {
-                let data = std::fs::read_to_string(path)?;
-                let scope_guard = device.push_error_scope(wgpu::ErrorFilter::Validation);
-
-                let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("User Shader Module"),
-                    source: wgpu::ShaderSource::Wgsl(data.into()),
-                });
-
-                if let Some(error) = pollster::block_on(scope_guard.pop())
-                {
-                    return Err(error.into());
-                }
-
-                (
-                    pipeline.create_pipeline(device, &shader)?,
-                    effect_params.clone(),
-                )
-            }
-        })
-    }
-}
-
-
 #[repr(C)]
-#[derive(Clone)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct EffectParams
 {
     pub param_a: [f32; 4],
@@ -245,7 +119,7 @@ impl ImageScene
         let texture = AsocTexture::from_image(device, queue, image);
 
         // Force dynamic rendering on certain effects.
-        let dynamic = desc.dynamic || matches!(desc.effect, Effect::Neuro(_));
+        let dynamic = desc.dynamic || desc.effect.require_dynamic();
 
         Ok(Self {
             ident: desc.ident.clone(),
@@ -269,60 +143,6 @@ impl ImageScene
         self.index_buffer.set_for_pass(pass);
         self.vertex_buffer.set_for_pass(pass);
         self.index_buffer.draw_index(pass);
-    }
-}
-
-
-pub struct ImageSceneDesc
-{
-    pub ident: String,
-    pub image_source: Vec<u8>,
-    pub image_fit: ImageFit,
-    pub background: [f32; 3],
-    pub dynamic: bool,
-    pub effect_params: EffectParams,
-    pub effect_strength: f32,
-    pub effect: Effect,
-}
-
-
-impl ImageSceneDesc
-{
-    pub fn load(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        scene_pipeline: &ScenePipeline,
-        effect_pipeline: &EffectPipeline,
-        surface_size: (u32, u32),
-    ) -> anyhow::Result<ImageScene>
-    {
-        ImageScene::new(
-            self,
-            device,
-            queue,
-            scene_pipeline,
-            effect_pipeline,
-            surface_size,
-        )
-    }
-}
-
-
-impl Default for ImageSceneDesc
-{
-    fn default() -> Self
-    {
-        Self {
-            ident: "default".into(),
-            image_source: include_bytes!("../../../textures/astro_miku.jpg").to_vec(),
-            image_fit: Default::default(),
-            background: [0.055 * 0.5, 0.12 * 0.5, 0.2 * 0.5],
-            dynamic: false,
-            effect_params: EffectParams::default(),
-            effect_strength: 50.0,
-            effect: Effect::Blur(BlurSettings::default()),
-        }
     }
 }
 
