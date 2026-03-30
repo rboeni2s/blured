@@ -1,5 +1,4 @@
 use std::{
-    env,
     sync::nonpoison::Mutex,
     time::{Duration, Instant},
 };
@@ -142,11 +141,6 @@ impl Application
 
     fn init(&self, registry: &Guard<Registry<AppEvent>>) -> Result<(), anyhow::Error>
     {
-        if env::var("WGPU_BACKEND").is_err()
-        {
-            unsafe { env::set_var("WGPU_BACKEND", "vulkan") };
-        }
-
         ctrlc::set_handler({
             let should_quit = self.should_quit.clone();
             move || should_quit.write(true)

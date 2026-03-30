@@ -12,6 +12,12 @@ fn main()
         unsafe { std::env::set_var("PLUG_LOG", "warn") };
     }
 
+    if std::env::var("WGPU_BACKEND").is_err()
+    {
+        unsafe { std::env::set_var("WGPU_BACKEND", "vulkan") };
+    }
+
+
     if let Err(e) = logger::init()
     {
         eprintln!("Error: Failed to initialize logger: {e}");
