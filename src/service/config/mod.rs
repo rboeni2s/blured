@@ -143,7 +143,7 @@ impl Config
 
     pub fn get_config(&self, name: &String) -> Option<Guard<AppConfig>>
     {
-        self.configs.get(&name)
+        self.configs.get(name)
     }
 
     pub fn get_active_config(&self) -> Guard<AppConfig>

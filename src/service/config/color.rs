@@ -18,11 +18,11 @@ impl Default for Color
 }
 
 
-impl Into<[f32; 3]> for Color
+impl From<Color> for [f32; 3]
 {
-    fn into(self) -> [f32; 3]
+    fn from(val: Color) -> Self
     {
-        match self
+        match val
         {
             Color::Rgb(rgb_color) => rgb_color.into(),
             Color::Hex(hex_color) => hex_color.into(),
@@ -36,14 +36,14 @@ impl Into<[f32; 3]> for Color
 pub struct RgbColor(u8, u8, u8);
 
 
-impl Into<[f32; 3]> for RgbColor
+impl From<RgbColor> for [f32; 3]
 {
-    fn into(self) -> [f32; 3]
+    fn from(val: RgbColor) -> Self
     {
         [
-            self.0 as f32 / 255.0,
-            self.1 as f32 / 255.0,
-            self.2 as f32 / 255.0,
+            val.0 as f32 / 255.0,
+            val.1 as f32 / 255.0,
+            val.2 as f32 / 255.0,
         ]
     }
 }
@@ -53,11 +53,11 @@ impl Into<[f32; 3]> for RgbColor
 pub struct HexColor(u32);
 
 
-impl Into<[f32; 3]> for HexColor
+impl From<HexColor> for [f32; 3]
 {
-    fn into(self) -> [f32; 3]
+    fn from(val: HexColor) -> Self
     {
-        let rgb = &self.0.to_be_bytes()[1..];
+        let rgb = &val.0.to_be_bytes()[1..];
         [
             rgb[0] as f32 / 255.0,
             rgb[1] as f32 / 255.0,
@@ -101,9 +101,7 @@ impl<'de> serde::Deserialize<'de> for HexColor
     where
         D: serde::Deserializer<'de>,
     {
-        deserializer
-            .deserialize_str(HexStringVisitor)
-            .map(|c| HexColor(c))
+        deserializer.deserialize_str(HexStringVisitor).map(HexColor)
     }
 }
 
