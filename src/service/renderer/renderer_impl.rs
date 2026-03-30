@@ -272,4 +272,17 @@ impl RendererImpl
     {
         self.effect_on = !self.effect_on;
     }
+
+    pub fn next_scene(&mut self) -> anyhow::Result<usize>
+    {
+        let next_index = (self.scene_index + 1) % self.scenes.len();
+
+        let ident = match self.scenes.get(next_index)
+        {
+            Some(scene) => scene.ident.clone(),
+            _ => return Err(anyhow::Error::msg("No scenes")),
+        };
+
+        self.switch_scene(&ident)
+    }
 }

@@ -1,13 +1,11 @@
 use serde::de::Visitor;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "snake_case")]
 pub enum Color
 {
-    // allow non_camel_case because the variant names are used by the toml config
-    #[allow(non_camel_case_types)]
-    rgb(RgbColor),
-    #[allow(non_camel_case_types)]
-    hex(HexColor),
+    Rgb(RgbColor),
+    Hex(HexColor),
 }
 
 
@@ -15,7 +13,7 @@ impl Default for Color
 {
     fn default() -> Self
     {
-        Color::hex(HexColor(0x0E1F33))
+        Color::Hex(HexColor(0x071019))
     }
 }
 
@@ -26,14 +24,15 @@ impl Into<[f32; 3]> for Color
     {
         match self
         {
-            Color::rgb(rgb_color) => rgb_color.into(),
-            Color::hex(hex_color) => hex_color.into(),
+            Color::Rgb(rgb_color) => rgb_color.into(),
+            Color::Hex(hex_color) => hex_color.into(),
         }
     }
 }
 
 
 #[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RgbColor(u8, u8, u8);
 
 
@@ -58,7 +57,7 @@ impl Into<[f32; 3]> for HexColor
 {
     fn into(self) -> [f32; 3]
     {
-        let rgb = &self.0.to_le_bytes()[1..];
+        let rgb = &self.0.to_be_bytes()[1..];
         [
             rgb[0] as f32 / 255.0,
             rgb[1] as f32 / 255.0,

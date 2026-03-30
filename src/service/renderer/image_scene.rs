@@ -12,6 +12,7 @@ use wgpu::BindGroupLayoutEntry;
 
 #[repr(C)]
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct EffectParams
 {
     pub param_a: [f32; 4],

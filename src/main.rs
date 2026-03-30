@@ -1,4 +1,4 @@
-use blured::{service, service::application::Application};
+use blured::service::{self, application::Application};
 use keep::Guard;
 use plug::logger;
 

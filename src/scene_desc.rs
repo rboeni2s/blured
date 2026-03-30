@@ -7,6 +7,7 @@ use keep::Guard;
 
 #[allow(unused)]
 #[derive(Default, Debug, Copy, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ImageFit
 {
     Stretch,
@@ -19,6 +20,7 @@ pub enum ImageFit
 
 #[allow(unused)]
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Effect
 {
     Blur(BlurSettings),
@@ -160,6 +162,8 @@ pub struct ImageSceneDesc
 
 impl ImageSceneDesc
 {
+    pub const DEFAULT_IMAGE: &[u8] = include_bytes!("../textures/astro_miku.jpg");
+
     pub fn load(
         &self,
         device: &wgpu::Device,
@@ -187,7 +191,7 @@ impl Default for ImageSceneDesc
     {
         Self {
             ident: "builtin".into(),
-            image_source: include_bytes!("../textures/astro_miku.jpg").to_vec(),
+            image_source: Self::DEFAULT_IMAGE.to_vec(),
             image_fit: Default::default(),
             background: [0.055 * 0.5, 0.12 * 0.5, 0.2 * 0.5],
             dynamic: false,

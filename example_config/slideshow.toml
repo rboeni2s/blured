@@ -1,0 +1,23 @@
+slideshow = true
+slideshow_interval.sec = 5  # Make this 5 seconds to really emphasize the slideshow part
+
+[[scene]]
+name = "city"
+image_source = {path = "~/.config/blured/wallpaper/path.jpg"}
+effect.blur = {}
+
+[[scene]]
+name = "miku"
+image_source = {path = "~/.config/blured/wallpaper/astro_miku.jpg"}
+effect.neuro = {}
+
+[[scene]]
+name = "dotted"
+image_source = {path = "~/.config/blured/wallpaper/swirls.jpg"}
+image_fit = "stretch"
+effect.custom = "~/.config/blured/shader/dotted.wgsl"
+dynamic = true
+effect_params.param_a = [60.0, 0.06, 0.0, 0.0]
+effect_params.param_b = [0.001, 0.001, 0.02, 1.0]
+
+

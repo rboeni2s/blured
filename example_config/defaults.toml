@@ -1,0 +1,137 @@
+# This is the default global configuration for all scenes
+#########################################################
+
+# Sets the time it takes to toggle the effect in seconds.
+# In other words: It will take transition_time seconds to
+# interpolate from between 0 and scene.effect_strength
+transition_time = 0.2
+
+# Controls whether or not to cycle through all scenes of this config automaticly
+#
+# slideshow = false  # No automatic scene switching
+# slideshow = true   # Switch to the next scene after slideshow_interval time passed.
+slideshow = false
+
+# Defines the duration after which the slideshow will switch to the next scene
+#
+# slideshow_interval.sec = 30  # Define the duration in seconds
+# slideshow_interval.min = 5   # Define the duration in minutes
+slideshow_interval.sec = 30
+
+
+
+# This is the default scene configuration
+#########################################
+#
+# One config can contain multiple scenes:
+# [[scene]]
+# name = "scene_1"
+# ...
+#
+# [[scene]]
+# name = "scene_2"
+# ...
+#
+# Every field on a scene is optional, all fields that are not set will
+# default to their default values. For example this is a valid scene:
+# [[scene]]
+# name = "my_scene"
+# effect.blur = {}
+#
+# The default config has one scene called "builtin".
+# The builin scene has all its fields set to their defaulr values.
+# 
+[[scene]]
+
+# Sets the name of this scene
+name = "builtin"
+
+# Sets the image source
+#
+# Possible values are:
+# image_source = "builtin"  # will use a builtin wallpaper
+# image_source = {path = "/path/to/my/image.png"}  # will use the image at the file path
+image_source = "builtin"
+
+# Controls how the image is scaled to the screen
+#
+# Possible values are:
+# image_fit = "fill_v"  # Maintains the image aspect ratio, fits the wallpaper vertically on the screen
+# image_fit = "fill_h"  # Maintains the image aspect ratio, fits the wallpaper horizontally on the screen
+# image_fit = "stretch" # Stretches the corners of the image to fit the corners of the screen
+# image_fit = "original"  # Does not scale the image
+image_fit = "fill_v"
+
+# Sets the togglable strength of this scenes effect. In case of the blur effect this
+# would control the blur strength. The effect_strength is seperate from the effect specific
+# settings because the effect strength can be dynamic (turned on/off, interpolated, ...) while
+# the effect settings cannot. 
+effect_strength = 50.0
+
+# Sets the background color. The backgroundcolor is displayed if the image does not cover the whole screen.
+#
+# Possible values are:
+# background_color.hex = "#71019"  # Hex color code
+# background_color.rgb = [76, 127, 25]  # RGB color code 0-255
+background_color.hex = "#71019"
+
+# The default shader is the neuro shader.
+# Scroll down to this and the other shadertypes documented.
+effect.neuro = {
+  scale = 2.8,
+  speed = 0.4,
+  dim = 17.0,
+  ambient = 0.3,
+}
+
+# Controls whether or not to rerender the effect contiously (dynamic=true) or
+# not (dynamic=false). This setting is intended for use with custom effect shaders
+# as the builtin ones will overwrite this flag. A scene should be dynamic if
+# it's effect is "moving" (for example like the neuro effect).
+dynamic = false
+
+# These are the default settings for this scenes effect params
+# changes here will not change the scene unless you are using custom
+# shader effects that are using these effect params
+effect_params.param_a = [1.0, 0.0, 0.0, 1.0]
+effect_params.param_b = [0.0, 1.0, 0.0, 1.0]
+effect_params.param_c = [0.0, 0.0, 1.0, 1.0]
+
+
+
+# These scenes document the different scene effects and their default values
+############################################################################
+
+# The neuro effect displays a futuristic cluster of galaxies
+# illuminating the background image.
+#
+# Not affected by scene.effect_strength
+# 
+[[scene]]
+name = "neuro_defaults"
+effect.neuro = {
+  scale = 2.8,    # Controls the scale of the galaxies. Larger number => More galaxies
+  speed = 0.4,    # Controls the speed at which the galaxies move
+  dim = 17.0,     # Controls how much to dim the light that the galaxies emit
+  ambient = 0.3,  # Controls the amount of ambient light
+  
+}
+
+# The blur effect will blur the background image based on scene.effect_strength
+#
+# Affected by scene.effect_strength: larger strength causes stronger blur
+[[scene]]
+name = "blur_defaults"
+effect.blur = {
+  quality = 64.0,  # Controls the Blur quality. Smaller values will make the blur look "low-res"
+  directions = 20.0,  # Controls the count of directions that the blur is referencing.
+                      # Smaller values will make the blur look "stripy".
+}
+
+# The custom effect will load a custom wgsl shader as effect.
+# This shader will have acess to the current time, effect_params and effect_strength.
+# 
+# See the custom_effect.toml config for an example!
+[[scene]]
+name = "custom_shader"
+effect.custom = "~/.config/blured/shader/dotted.wgsl" # Set the path to your custom effect shader source file
