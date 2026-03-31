@@ -69,7 +69,7 @@ fn fragment(vert: VertexOutput) -> @location(0) vec4<f32>
     // These are the texture cooardinates use these for texture sampling
     let tex = vec2(vert.tex.x, 1 - vert.tex.y);
 
-    // These are the uv cooadinates (like texture coordinates)
+    // These are the uv cooadinates (like texture cooadinates)
     // but centered and aspect ratio corrected.
     // The uv coordinates span between -1 and 1 on each axis where 0 is the screen center
     let uv = ((vert.tex*size) - 0.5*size) / size.y;
