@@ -117,7 +117,7 @@ impl Application
 
     fn dispatch(&self) -> anyhow::Result<()>
     {
-        const FRAME_TIME_TARGET_MS: u64 = 33;
+        const FRAME_TIME_TARGET_MS: u64 = 16;
 
         let mut last_frame_time;
         let mut frame_start = Instant::now();
@@ -130,6 +130,8 @@ impl Application
             self.slideshow.lock().manage(self);
             self.wl_client.dispatch(last_frame_time)?;
             self.renderer.dispatch(last_frame_time)?;
+
+            // println!("{last_frame_time:?}");
 
             std::thread::sleep(
                 Duration::from_millis(FRAME_TIME_TARGET_MS).saturating_sub(frame_start.elapsed()),

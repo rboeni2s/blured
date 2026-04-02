@@ -1,5 +1,3 @@
-use keep::Guard;
-
 use crate::service::renderer::buffer::IndexBuffer;
 use crate::service::renderer::buffer::SQUARE_INDICES;
 use crate::service::renderer::buffer::SQUARE_VERTICES;
@@ -11,6 +9,7 @@ use crate::service::renderer::image_scene::EffectParams;
 use crate::service::renderer::image_scene::ImageScene;
 use crate::service::renderer::texture::Texture;
 use crate::service::renderer::texture::TextureBindGroupLayout;
+use keep::Guard;
 
 
 pub struct ScenePipeline
@@ -30,7 +29,11 @@ impl ScenePipeline
         let camera = CameraBuffer::new(device, Camera::default(), width, height);
         let camera_bind_group = camera.create_bind_group(device);
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("../../../shader/scene.wgsl"));
+        let scene_shader = include_bytes!(env!("BLURED_SHADER_PATH"));
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::util::make_spirv(scene_shader),
+        });
 
         let texture_bind_group_layout = TextureBindGroupLayout::new(device);
 
@@ -65,7 +68,7 @@ impl ScenePipeline
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vertex"),
+                entry_point: Some("scene::vertex"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 buffers: &[VertexBuffer::default_layout()],
             },
@@ -86,7 +89,7 @@ impl ScenePipeline
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: Some("fragment"),
+                entry_point: Some("scene::fragment"),
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: wgpu::TextureFormat::Rgba8UnormSrgb,

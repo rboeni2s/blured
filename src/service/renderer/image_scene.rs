@@ -100,9 +100,15 @@ impl ImageScene
         let background_verts = make_background(surface_width, surface_height);
         let verts = [image_verts, background_verts];
 
+
         let background_bind_group = create_bind_group(
             device,
-            &desc.background,
+            &[
+                desc.background[0],
+                desc.background[1],
+                desc.background[2],
+                0.0, // As padding
+            ],
             &scene_pipeline.color_bind_group_layout,
         );
 
