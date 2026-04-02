@@ -8,8 +8,10 @@ pub mod jumping;
 
 // Shared imports, data and functions for all effects as well as a common vertex entry point
 ////////////////////////////////////////////////////////////////////////////////////////////
+pub mod effect;
 pub mod scene;
-pub use glam::{Vec2, Vec3, Vec4, vec3};
+pub use effect::Effect;
+pub use glam::{Vec2, Vec3, Vec4, swizzles::*};
 pub use spirv_std::{Sampler, image::Image2d, spirv};
 
 #[cfg(target_arch = "spirv")]
@@ -55,17 +57,16 @@ pub fn saturate(x: f32) -> f32
 
 pub fn pow(v: Vec3, power: f32) -> Vec3
 {
-    vec3(v.x.powf(power), v.y.powf(power), v.z.powf(power))
+    Vec3::new(v.x.powf(power), v.y.powf(power), v.z.powf(power))
 }
 
 
 pub fn exp(v: Vec3) -> Vec3
 {
-    vec3(v.x.exp(), v.y.exp(), v.z.exp())
+    Vec3::new(v.x.exp(), v.y.exp(), v.z.exp())
 }
 
 
-/// Based on: <https://seblagarde.wordpress.com/2014/12/01/inverse-trigonometric-functions-gpu-optimization-for-amd-gcn-architecture/>
 pub fn acos_approx(v: f32) -> f32
 {
     let x = v.abs();
