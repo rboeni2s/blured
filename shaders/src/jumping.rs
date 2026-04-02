@@ -61,7 +61,7 @@ impl Ray
         let vv = uu.cross(ww).normalize();
         let direction = (uv.x * uu + uv.y * vv + 1.5 * ww).normalize();
 
-        return Self::new(origin, direction);
+        Self::new(origin, direction)
     }
 }
 
@@ -82,7 +82,7 @@ fn calc_normal(pos: Vec3, map: impl Fn(Vec3) -> f32) -> Vec3
 fn smin(a: f32, b: f32, blend: f32) -> f32
 {
     let h = f32::max(blend - f32::abs(a - b), 0.0);
-    return f32::min(a, b) - h * h / (blend * 4.0);
+    f32::min(a, b) - h * h / (blend * 4.0)
 }
 
 
@@ -91,13 +91,13 @@ fn ellipse_sdf(pos: Vec3, radius: Vec3) -> f32
     let pr = pos / radius;
     let d0 = pr.length();
     let d1 = (pr / radius).length();
-    return d0 * (d0 - 1.0) / d1;
+    d0 * (d0 - 1.0) / d1
 }
 
 
 fn sphere_sdf(pos: Vec3, radius: f32) -> f32
 {
-    return pos.length() - radius;
+    pos.length() - radius
 }
 
 
@@ -138,7 +138,7 @@ fn monster_sdf(pos: Vec3, time: f32) -> f32
     monster = smin(monster, eye_l, 0.002);
     monster = smin(monster, eye_r, 0.002);
 
-    return monster;
+    monster
 }
 
 
@@ -146,7 +146,7 @@ fn map(pos: Vec3, time: f32) -> f32
 {
     let monster = monster_sdf(pos, time);
     let plane_sdf = pos.y + 0.25;
-    return f32::min(monster, plane_sdf);
+    f32::min(monster, plane_sdf)
 }
 
 
@@ -195,5 +195,5 @@ effect!(|Effect { uv, time, .. }, _, _| {
         }
     }
 
-    return pow(color, 0.4545);
+    pow(color, 0.4545)
 });
