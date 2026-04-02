@@ -35,7 +35,7 @@ macro_rules! effect {
             #[spirv(descriptor_set = 0, binding = 0)] texture: &Image2d,
             #[spirv(descriptor_set = 0, binding = 1)] sampler: &Sampler,
             #[spirv(uniform, descriptor_set = 1, binding = 0)] params: &EffectParams,
-            #[spirv(uniform, descriptor_set = 1, binding = 0)] EffectData {
+            #[spirv(uniform, descriptor_set = 2, binding = 0)] EffectData {
                 strength,
                 max_strength,
                 time,
