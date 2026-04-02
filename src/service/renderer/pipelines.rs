@@ -12,6 +12,10 @@ use crate::service::renderer::texture::TextureBindGroupLayout;
 use keep::Guard;
 
 
+/// Statically linked spirv shader sources, used for effects written in rust!!
+static BLURED_SHADER: &[u8] = include_bytes!(env!("BLURED_SHADER_PATH"));
+
+
 pub struct ScenePipeline
 {
     pub pipeline: wgpu::RenderPipeline,
@@ -29,10 +33,9 @@ impl ScenePipeline
         let camera = CameraBuffer::new(device, Camera::default(), width, height);
         let camera_bind_group = camera.create_bind_group(device);
 
-        let scene_shader = include_bytes!(env!("BLURED_SHADER_PATH"));
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::util::make_spirv(scene_shader),
+            source: wgpu::util::make_spirv(BLURED_SHADER),
         });
 
         let texture_bind_group_layout = TextureBindGroupLayout::new(device);
@@ -165,6 +168,8 @@ pub struct EffectPipeline
     pub effect_params_layout: wgpu::BindGroupLayout,
     pub strength_layout: wgpu::BindGroupLayout,
     pub neuro_pipeline: Guard<wgpu::RenderPipeline>,
+    pub blank_pipeline: Guard<wgpu::RenderPipeline>,
+    pub jumping_pipeline: Guard<wgpu::RenderPipeline>,
 }
 
 impl EffectPipeline
@@ -173,11 +178,17 @@ impl EffectPipeline
         &self,
         device: &wgpu::Device,
         shader: &wgpu::ShaderModule,
+        entry_point_name: &str,
     ) -> anyhow::Result<Guard<wgpu::RenderPipeline>>
     {
         let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let pipeline =
-            Self::create_pipeline_impl(device, &self.pipeline_layout, self.format, shader);
+        let pipeline = Self::create_pipeline_impl(
+            device,
+            &self.pipeline_layout,
+            self.format,
+            shader,
+            entry_point_name,
+        );
 
         if let Some(e) = pollster::block_on(scope.pop())
         {
@@ -192,6 +203,7 @@ impl EffectPipeline
         layout: &wgpu::PipelineLayout,
         format: wgpu::TextureFormat,
         shader: &wgpu::ShaderModule,
+        entry_point_name: &str,
     ) -> Guard<wgpu::RenderPipeline>
     {
         device
@@ -221,7 +233,7 @@ impl EffectPipeline
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: shader,
-                    entry_point: Some("fragment"),
+                    entry_point: Some(entry_point_name),
                     compilation_options: wgpu::PipelineCompilationOptions::default(),
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
@@ -237,12 +249,6 @@ impl EffectPipeline
 
     pub fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self
     {
-        let blur_shader =
-            device.create_shader_module(wgpu::include_wgsl!("../../../shader/blur.wgsl"));
-
-        let neuro_shader =
-            device.create_shader_module(wgpu::include_wgsl!("../../../shader/neuro.wgsl"));
-
         let texture_bind_group_layout = TextureBindGroupLayout::new(device);
         let effect_data_layout = EffectParams::layout(device);
         let strength_layout = EffectParams::layout(device);
@@ -257,16 +263,48 @@ impl EffectPipeline
             immediate_size: 0,
         });
 
+        let blur_shader =
+            device.create_shader_module(wgpu::include_wgsl!("../../../wgsl_shader/blur.wgsl"));
+
+        let neuro_shader =
+            device.create_shader_module(wgpu::include_wgsl!("../../../wgsl_shader/neuro.wgsl"));
+
+        // This module bundles all of blured shader-effects that are not written in wgsl!
+        let blured_shader_bundle = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::util::make_spirv(BLURED_SHADER),
+        });
+
         let blur_pipeline =
-            Self::create_pipeline_impl(device, &pipeline_layout, format, &blur_shader);
+            Self::create_pipeline_impl(device, &pipeline_layout, format, &blur_shader, "fragment");
+
         let neuro_pipeline =
-            Self::create_pipeline_impl(device, &pipeline_layout, format, &neuro_shader);
+            Self::create_pipeline_impl(device, &pipeline_layout, format, &neuro_shader, "fragment");
+
+        let blank_pipeline = Self::create_pipeline_impl(
+            device,
+            &pipeline_layout,
+            format,
+            &blured_shader_bundle,
+            "blank::fragment",
+        );
+
+        let jumping_pipeline = Self::create_pipeline_impl(
+            device,
+            &pipeline_layout,
+            format,
+            &blured_shader_bundle,
+            "jumping::fragment",
+        );
+
         let vertex_buffer = VertexBuffer::new(device, SQUARE_VERTICES);
         let index_buffer = IndexBuffer::new(device, SQUARE_INDICES);
 
         Self {
             blur_pipeline,
             neuro_pipeline,
+            blank_pipeline,
+            jumping_pipeline,
             pipeline_layout,
             texture_bind_group_layout,
             vertex_buffer,
