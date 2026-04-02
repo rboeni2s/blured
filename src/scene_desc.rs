@@ -25,7 +25,59 @@ pub enum Effect
 {
     Blur(BlurSettings),
     Neuro(NeuroSettings),
+    Blank,
     Custom(String),
+    Jumping,
+}
+
+
+impl Effect
+{
+    pub fn fetch_pipeline(
+        &self,
+        device: &wgpu::Device,
+        pipeline: &EffectPipeline,
+        effect_params: &EffectParams,
+    ) -> anyhow::Result<(Guard<wgpu::RenderPipeline>, EffectParams)>
+    {
+        Ok(match self
+        {
+            // Get guards to the shared builtin pipelines
+            Effect::Blur(settings) => (pipeline.blur_pipeline.clone(), settings.into()),
+            Effect::Neuro(settings) => (pipeline.neuro_pipeline.clone(), settings.into()),
+            Effect::Blank => (pipeline.blank_pipeline.clone(), EffectParams::default()),
+            Effect::Jumping => (pipeline.jumping_pipeline.clone(), EffectParams::default()),
+
+            // Load a user supplied wgsl shader from disk
+            Effect::Custom(path) =>
+            {
+                let data = std::fs::read_to_string(path)?;
+                let scope_guard = device.push_error_scope(wgpu::ErrorFilter::Validation);
+
+                let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("User Shader Module"),
+                    source: wgpu::ShaderSource::Wgsl(data.into()),
+                });
+
+                if let Some(error) = pollster::block_on(scope_guard.pop())
+                {
+                    return Err(error.into());
+                }
+
+                (
+                    pipeline.create_pipeline(device, &shader, "fragment")?,
+                    effect_params.clone(),
+                )
+            }
+        })
+    }
+
+    /// Returns `true` if a builtin effect does require dynamic rendering
+    /// and needs to overwrite the "dynamic" field in it's config.
+    pub fn require_dynamic(&self) -> bool
+    {
+        matches!(self, Effect::Neuro(_))
+    }
 }
 
 
@@ -95,54 +147,6 @@ impl From<&BlurSettings> for EffectParams
             param_a: [value.quality, value.directions, 0.0, 0.0],
             ..Default::default()
         }
-    }
-}
-
-
-impl Effect
-{
-    pub fn fetch_pipeline(
-        &self,
-        device: &wgpu::Device,
-        pipeline: &EffectPipeline,
-        effect_params: &EffectParams,
-    ) -> anyhow::Result<(Guard<wgpu::RenderPipeline>, EffectParams)>
-    {
-        Ok(match self
-        {
-            // Get guards to the shared builtin pipelines
-            Effect::Blur(settings) => (pipeline.blur_pipeline.clone(), settings.into()),
-            Effect::Neuro(settings) => (pipeline.neuro_pipeline.clone(), settings.into()),
-
-            // Load a user supplied wgsl shader from disk
-            Effect::Custom(path) =>
-            {
-                let data = std::fs::read_to_string(path)?;
-                let scope_guard = device.push_error_scope(wgpu::ErrorFilter::Validation);
-
-                let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("User Shader Module"),
-                    source: wgpu::ShaderSource::Wgsl(data.into()),
-                });
-
-                if let Some(error) = pollster::block_on(scope_guard.pop())
-                {
-                    return Err(error.into());
-                }
-
-                (
-                    pipeline.create_pipeline(device, &shader)?,
-                    effect_params.clone(),
-                )
-            }
-        })
-    }
-
-    /// Returns `true` if a builtin effect does require dynamic rendering
-    /// and needs to overwrite the "dynamic" field in it's config.
-    pub fn require_dynamic(&self) -> bool
-    {
-        matches!(self, Effect::Neuro(_))
     }
 }
 

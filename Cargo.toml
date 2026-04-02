@@ -22,4 +22,13 @@ toml = "1.1.0"
 wayland-client = { version = "0.31.13", features = ["log", "system"] }
 wayland-protocols = "0.32.11"
 wayland-protocols-wlr = { version = "0.3.11", features = ["client"] }
-wgpu = "29.0.0"
+wgpu = { version = "29.0.0", features = ["spirv"] }
+
+[build-dependencies]
+cargo-gpu-install = { git = "https://github.com/rust-gpu/cargo-gpu"}
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
