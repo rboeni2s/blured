@@ -1,110 +1,15 @@
 #![allow(unused)]
-
-
 use crate::*;
+use raymarch::*;
+
+// Define Materials
+material!(MatDist, Mat => MonsterBody, MonsterEye, Ground, Stone);
 
 
-const HIT: f32 = 0.0001;
-const SKY: f32 = 20.0;
-
-
-struct Ray
-{
-    ori: Vec3,
-    dir: Vec3,
-}
-
-
-impl Ray
-{
-    fn new(ori: Vec3, dir: Vec3) -> Self
-    {
-        Self { ori, dir }
-    }
-
-    fn shoot(&self, t: f32) -> Vec3
-    {
-        self.ori + t * self.dir
-    }
-
-    fn march(&self, map: impl Fn(Vec3) -> f32) -> Option<f32>
-    {
-        let mut t = 0.0;
-
-        loop
-        {
-            let pos = self.shoot(t);
-            let dist = map(pos);
-
-            if dist < HIT
-            {
-                return Some(t);
-            }
-            else if t > SKY
-            {
-                return None;
-            }
-
-            t += dist;
-        }
-    }
-
-    fn camera(uv: Vec2, time: f32) -> Self
-    {
-        let pos = Vec2::new(3.5, 0.9);
-        let look_at = Vec3::new(0.0, 1.1, 0.0);
-
-        let angle = time * 0.1;
-        let origin = Vec3::new(angle.sin() * pos.x, pos.y, angle.cos() * pos.x);
-        let ww = (look_at - origin).normalize();
-        let uu = ww.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
-        let vv = uu.cross(ww).normalize();
-        let direction = (uv.x * uu + uv.y * vv + 1.5 * ww).normalize();
-
-        Self::new(origin, direction)
-    }
-}
-
-
-fn calc_normal(pos: Vec3, map: impl Fn(Vec3) -> f32) -> Vec3
-{
-    const NORMAL_ACC: Vec2 = Vec2::new(0.0001, 0.0);
-
-    Vec3::new(
-        map(pos + NORMAL_ACC.xyy()) - map(pos - NORMAL_ACC.xyy()),
-        map(pos + NORMAL_ACC.yxy()) - map(pos - NORMAL_ACC.yxy()),
-        map(pos + NORMAL_ACC.yyx()) - map(pos - NORMAL_ACC.yyx()),
-    )
-    .normalize()
-}
-
-
-fn smin(a: f32, b: f32, blend: f32) -> f32
-{
-    let h = f32::max(blend - f32::abs(a - b), 0.0);
-    f32::min(a, b) - h * h / (blend * 4.0)
-}
-
-
-fn ellipse_sdf(pos: Vec3, radius: Vec3) -> f32
-{
-    let pr = pos / radius;
-    let d0 = pr.length();
-    let d1 = (pr / radius).length();
-    d0 * (d0 - 1.0) / d1
-}
-
-
-fn sphere_sdf(pos: Vec3, radius: f32) -> f32
-{
-    pos.length() - radius
-}
-
-
-fn monster_sdf(pos: Vec3, time: f32) -> f32
+fn monster_sdf(pos: Vec3, time: f32) -> MatDist
 {
     let t = (time * 0.8).fract();
-    let t = 0.5;
+    // let t = 0.5; // Freeze the animation
 
     // Animate the y_pos of the monster
     let y_pos = 4.0 * t * (1.0 - t);
@@ -127,26 +32,51 @@ fn monster_sdf(pos: Vec3, time: f32) -> f32
     // init_pos.y = init_pos_yz.x;
     // init_pos.z = init_pos_yz.y;
 
-    let belly_sdf = ellipse_sdf(init_pos, Vec3::splat(0.25));
-    let head_sdf = ellipse_sdf(init_pos + Vec3::new(0.0, -0.28, 0.0), Vec3::splat(0.2));
-    let head_back_sdf = ellipse_sdf(init_pos + Vec3::new(0.0, -0.28, 0.1), Vec3::splat(0.2));
-    let eye_l = sphere_sdf(init_pos + Vec3::new(-0.1, -0.3, -0.14), 0.05);
-    let eye_r = sphere_sdf(init_pos + Vec3::new(0.1, -0.3, -0.14), 0.05);
+    let belly_sdf = MatDist::new(Mat::MonsterBody, ellipse_sdf(init_pos, Vec3::splat(0.25)));
+    let head_sdf = MatDist::new(
+        Mat::MonsterBody,
+        ellipse_sdf(init_pos + Vec3::new(0.0, -0.28, 0.0), Vec3::splat(0.2)),
+    );
+    let head_back_sdf = MatDist::new(
+        Mat::MonsterBody,
+        ellipse_sdf(init_pos + Vec3::new(0.0, -0.28, 0.1), Vec3::splat(0.2)),
+    );
+    let eye_l = MatDist::new(
+        Mat::MonsterEye,
+        sphere_sdf(init_pos + Vec3::new(-0.1, -0.3, -0.14), 0.05),
+    );
+    let eye_r = MatDist::new(
+        Mat::MonsterEye,
+        sphere_sdf(init_pos + Vec3::new(0.1, -0.3, -0.14), 0.05),
+    );
 
-    let mut monster = smin(belly_sdf, head_sdf, 0.1);
-    monster = smin(monster, head_back_sdf, 0.03);
-    monster = smin(monster, eye_l, 0.002);
-    monster = smin(monster, eye_r, 0.002);
+    let mut monster = belly_sdf.smin(head_sdf, 0.1);
+    monster = monster.smin(head_back_sdf, 0.03);
+    monster = monster.smin(eye_l, 0.002);
+    monster = monster.smin(eye_r, 0.002);
 
     monster
 }
 
 
-fn map(pos: Vec3, time: f32) -> f32
+fn map(pos: Vec3, time: f32) -> MatDist
 {
     let monster = monster_sdf(pos, time);
-    let plane_sdf = pos.y + 0.25;
-    f32::min(monster, plane_sdf)
+
+    let stone = MatDist::new(
+        Mat::Stone,
+        ellipse_sdf(
+            pos - Vec3::new(-1.0, -0.25, -1.0),
+            Vec3::new(0.4, 0.2, 0.25),
+        ),
+    );
+
+    let ground = MatDist::new(Mat::Ground, pos.y + 0.25);
+
+    let mut scene = monster.min(ground);
+    scene = scene.smin(stone, 0.1);
+
+    scene
 }
 
 
@@ -156,19 +86,20 @@ effect!(|Effect { uv, time, .. }, _, _| {
     let matt = Vec3::splat(0.18);
 
     // Setup a camera and march a ray from it...
-    let ray = Ray::camera(uv, time);
+    let look_at = Vec3::new(-0.5, 0.9, 0.0);
+    let ray = Ray::camera(uv, time, look_at, 5.0, 2.0);
 
-    match ray.march(|pos| map(pos, time))
+    match ray.march(time, map)
     {
-        Some(dist) =>
+        Some(mat) =>
         {
             // Calculate the normals of "something"
-            let pos = ray.shoot(dist);
-            let normal = calc_normal(pos, |p| map(p, time));
+            let pos = ray.shoot(mat.dist());
+            let normal = calc_normal(pos, time, map);
 
             // March shadow rays
             let shadow_ray = Ray::new(pos + (normal * HIT), sun_dir);
-            let shadow_dist = shadow_ray.march(|pos| map(pos, time));
+            let shadow_dist = shadow_ray.march(time, map);
 
             // Calculate lighting
             let sun_light = f32::clamp(normal.dot(sun_dir), 0.0, 1.0);
@@ -181,17 +112,21 @@ effect!(|Effect { uv, time, .. }, _, _| {
             color += matt * Vec3::new(7.0, 5.0, 3.0) * sun_light * sun_shadow;
             color += matt * Vec3::new(0.5, 0.8, 0.9) * sky_light;
             color += matt * Vec3::new(0.7, 0.3, 0.2) * bounce_light;
+
+            match mat.mat()
+            {
+                Mat::MonsterBody => color *= Vec3::new(0.6, 0.1, 0.1),
+                Mat::MonsterEye => color *= Vec3::new(0.8, 0.8, 0.8),
+                Mat::Ground => color *= Vec3::new(0.1, 0.4, 0.1),
+                Mat::Stone => color *= Vec3::new(0.1, 0.1, 0.1),
+            }
         }
 
         None =>
         {
             // Draw a sky
-            color = Vec3::new(0.2, 0.6, 1.0) - ray.dir.y.max(0.0) * 0.5;
-            color = mix(
-                color,
-                Vec3::new(0.7, 0.75, 0.8),
-                f32::exp(-10.0 * ray.dir.y),
-            );
+            color = Vec3::new(0.2, 0.2, 1.0) - ray.dir.y.max(0.0) * 0.5;
+            color = mix(color, Vec3::new(0.3, 0.3, 0.8), f32::exp(-10.0 * ray.dir.y));
         }
     }
 

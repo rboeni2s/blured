@@ -10,6 +10,7 @@ pub mod jumping;
 ////////////////////////////////////////////////////////////////////////////////////////////
 pub mod common;
 pub mod effect;
+pub mod raymarch;
 pub mod scene;
 pub use common::*;
 pub use effect::Effect;
