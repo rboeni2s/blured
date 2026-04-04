@@ -1,5 +1,4 @@
 use crate::*;
-use core::ops::{AddAssign, SubAssign};
 
 pub const HIT: f32 = 0.001;
 pub const FAR: f32 = 20.0;
@@ -24,29 +23,29 @@ impl Ray
         self.ori + t * self.dir
     }
 
-    pub fn march<T, F, M>(&self, time: f32, map: F) -> Option<T>
+    pub fn march<F, M>(&self, time: f32, map: F) -> Option<Sdf<M>>
     where
-        T: Material<M> + Default,
-        F: Fn(Vec3, f32) -> T,
+        M: Default,
+        F: Fn(Vec3, f32) -> Sdf<M>,
     {
-        let mut t = T::default();
+        let mut t = Sdf::default();
 
         loop
         {
-            let pos = self.shoot(t.dist());
+            let pos = self.shoot(t.dist);
             let dist = map(pos, time);
-            *t.mat_mut() = dist.mat();
+            t.mat = dist.mat;
 
-            if dist.dist() < HIT
+            if dist.dist < HIT
             {
                 return Some(t);
             }
-            else if t.dist() > FAR
+            else if t.dist > FAR
             {
                 return None;
             }
 
-            t.dist_mut().add_assign(dist.dist());
+            t.dist += dist.dist;
         }
     }
 
@@ -65,17 +64,16 @@ impl Ray
 }
 
 
-pub fn calc_normal<T, F, M>(pos: Vec3, time: f32, map: F) -> Vec3
+pub fn calc_normal<F, M>(pos: Vec3, time: f32, map: F) -> Vec3
 where
-    T: Material<M>,
-    F: Fn(Vec3, f32) -> T,
+    F: Fn(Vec3, f32) -> Sdf<M>,
 {
     const NORMAL_ACC: Vec2 = Vec2::new(0.0001, 0.0);
 
     Vec3::new(
-        map(pos + NORMAL_ACC.xyy(), time).dist() - map(pos - NORMAL_ACC.xyy(), time).dist(),
-        map(pos + NORMAL_ACC.yxy(), time).dist() - map(pos - NORMAL_ACC.yxy(), time).dist(),
-        map(pos + NORMAL_ACC.yyx(), time).dist() - map(pos - NORMAL_ACC.yyx(), time).dist(),
+        map(pos + NORMAL_ACC.xyy(), time).dist - map(pos - NORMAL_ACC.xyy(), time).dist,
+        map(pos + NORMAL_ACC.yxy(), time).dist - map(pos - NORMAL_ACC.yxy(), time).dist,
+        map(pos + NORMAL_ACC.yyx(), time).dist - map(pos - NORMAL_ACC.yyx(), time).dist,
     )
     .normalize()
 }
@@ -96,59 +94,15 @@ pub fn sphere_sdf(pos: Vec3, radius: f32) -> f32
 }
 
 
-pub trait Material<M>
+pub fn plane_sdf(pos: Vec3) -> f32
 {
-    fn mat_mut(&mut self) -> &mut M;
-    fn mat(&self) -> M;
-    fn dist(&self) -> f32;
-    fn dist_mut(&mut self) -> &mut f32;
-}
-
-
-pub trait MaterialExt<M>: Material<M>
-where
-    M: PartialEq,
-    Self: Sized,
-{
-    fn min(self, other: Self) -> Self
-    {
-        if self.dist() < other.dist()
-        {
-            self
-        }
-        else
-        {
-            other
-        }
-    }
-
-    fn smin(self, other: Self, smooth: f32) -> Self
-    {
-        let h = f32::max(smooth - f32::abs(self.dist() - other.dist()), 0.0);
-        let h = h * h / (smooth * 4.0);
-        let mut min = self.min(other);
-        min.dist_mut().sub_assign(h);
-        min
-    }
-
-    fn is(self, other: M) -> bool
-    {
-        self.mat() == other
-    }
-}
-
-
-impl<T, M> MaterialExt<M> for T
-where
-    T: Material<M>,
-    M: PartialEq,
-{
+    pos.y
 }
 
 
 #[macro_export]
 macro_rules! material {
-    ($wname:ident, $mname:ident => $($mat:ident),+) => {
+    ($mname:ident => [$($mat:ident),+]) => {
         #[repr(u32)]
         #[derive(Default, Copy, Clone, PartialEq, Eq)]
         enum $mname
@@ -156,46 +110,152 @@ macro_rules! material {
             #[default]
             $($mat),*
         }
-
-
-        #[derive(Default, Copy, Clone, PartialEq)]
-        struct $wname
-        {
-            material: $mname,
-            dist: f32,
-        }
-
-
-        impl $wname
-        {
-            fn new(material: $mname, dist: f32) -> Self
-            {
-                Self { material, dist }
-            }
-        }
-
-
-        impl Material<Mat> for $wname
-        {
-            fn mat(&self) -> $mname
-            {
-                self.material
-            }
-
-            fn mat_mut(&mut self) -> &mut $mname
-            {
-                &mut self.material
-            }
-
-            fn dist(&self) -> f32
-            {
-                self.dist
-            }
-
-            fn dist_mut(&mut self) -> &mut f32
-            {
-                &mut self.dist
-            }
-        }
     };
+}
+
+
+pub struct Sdf<M>
+{
+    pub dist: f32,
+    pub mat: M,
+}
+
+
+impl<M> Sdf<M>
+where
+    M: PartialEq,
+{
+    pub fn min(self, other: impl Into<Self>) -> Self
+    {
+        let other = other.into();
+        if self.dist < other.dist { self } else { other }
+    }
+
+    pub fn smin(self, other: impl Into<Self>, smooth: f32) -> Self
+    {
+        let other = other.into();
+        let h = f32::max(smooth - f32::abs(self.dist - other.dist), 0.0);
+        let h = h * h / (smooth * 4.0);
+        let mut min = self.min(other);
+        min.dist -= h;
+        min
+    }
+
+    pub fn is(self, other: M) -> bool
+    {
+        self.mat == other
+    }
+}
+
+
+impl<M> AsRef<M> for Sdf<M>
+{
+    fn as_ref(&self) -> &M
+    {
+        &self.mat
+    }
+}
+
+
+impl<M> AsMut<M> for Sdf<M>
+{
+    fn as_mut(&mut self) -> &mut M
+    {
+        &mut self.mat
+    }
+}
+
+
+impl<M> Default for Sdf<M>
+where
+    M: Default,
+{
+    fn default() -> Self
+    {
+        Self {
+            dist: 0.0,
+            mat: Default::default(),
+        }
+    }
+}
+
+
+impl<F, M> From<SdfBuilder<F, M>> for Sdf<M>
+where
+    F: Fn(Vec3) -> f32,
+    M: Default + Copy + Clone + PartialEq + Eq,
+{
+    fn from(value: SdfBuilder<F, M>) -> Self
+    {
+        value.build()
+    }
+}
+
+
+pub struct SdfBuilder<F, M>
+{
+    pos: Vec3,
+    func: F,
+    mat: M,
+    ray_tip: Vec3,
+}
+
+
+impl<M, F> SdfBuilder<F, M>
+where
+    F: Fn(Vec3) -> f32,
+    M: Default + Copy + Clone + PartialEq + Eq,
+{
+    #[inline]
+    pub fn new(ray_tip: Vec3, func: F) -> Self
+    {
+        Self {
+            ray_tip,
+            func,
+            mat: M::default(),
+            pos: Vec3::ZERO,
+        }
+    }
+
+    #[inline]
+    pub fn pos(self, x: f32, y: f32, z: f32) -> Self
+    {
+        self.posv(Vec3::new(x, y, z))
+    }
+
+    #[inline]
+    pub fn posv(mut self, pos: Vec3) -> Self
+    {
+        self.pos = pos;
+        self
+    }
+
+    #[inline]
+    pub fn mat(mut self, mat: M) -> Self
+    {
+        self.mat = mat;
+        self
+    }
+
+    #[inline]
+    pub fn build(self) -> Sdf<M>
+    {
+        // F needs to have a local binding because of a
+        // pointer offset error in the spirv codegen backend...
+        let f = self.func;
+
+        Sdf {
+            dist: f(self.ray_tip - self.pos),
+            mat: self.mat,
+        }
+    }
+}
+
+
+pub fn sdf<F, M>(ray_tip: Vec3, func: F) -> SdfBuilder<F, M>
+where
+    F: Fn(Vec3) -> f32,
+    M: Default + Copy + Clone + PartialEq + Eq,
+{
+    SdfBuilder::new(ray_tip, func)
 }

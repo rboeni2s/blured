@@ -2,11 +2,12 @@
 use crate::*;
 use raymarch::*;
 
-// Define Materials
-material!(MatDist, Mat => MonsterBody, MonsterEye, Ground, Stone);
+
+// Define materials
+material!(Mat => [MonsterBody, MonsterEye, Ground, Stone, MonsterPupil]);
 
 
-fn monster_sdf(pos: Vec3, time: f32) -> MatDist
+fn monster_sdf(pos: Vec3, time: f32) -> Sdf<Mat>
 {
     let t = (time * 0.8).fract();
     // let t = 0.5; // Freeze the animation
@@ -27,51 +28,63 @@ fn monster_sdf(pos: Vec3, time: f32) -> MatDist
     let v = Vec2::new(-d_y_pos, 1.0);
 
     // Move the monster using the new uv's
-    let mut init_pos = pos - center;
+    let mut pos = pos - center;
     // let init_pos_yz = Vec2::new(u.dot(init_pos.yz()), v.dot(init_pos.yz()));
     // init_pos.y = init_pos_yz.x;
     // init_pos.z = init_pos_yz.y;
 
-    let belly_sdf = MatDist::new(Mat::MonsterBody, ellipse_sdf(init_pos, Vec3::splat(0.25)));
-    let head_sdf = MatDist::new(
-        Mat::MonsterBody,
-        ellipse_sdf(init_pos + Vec3::new(0.0, -0.28, 0.0), Vec3::splat(0.2)),
-    );
-    let head_back_sdf = MatDist::new(
-        Mat::MonsterBody,
-        ellipse_sdf(init_pos + Vec3::new(0.0, -0.28, 0.1), Vec3::splat(0.2)),
-    );
-    let eye_l = MatDist::new(
-        Mat::MonsterEye,
-        sphere_sdf(init_pos + Vec3::new(-0.1, -0.3, -0.14), 0.05),
-    );
-    let eye_r = MatDist::new(
-        Mat::MonsterEye,
-        sphere_sdf(init_pos + Vec3::new(0.1, -0.3, -0.14), 0.05),
-    );
+    let belly = sdf(pos, |p| ellipse_sdf(p, Vec3::splat(0.25))).mat(Mat::MonsterBody);
 
-    let mut monster = belly_sdf.smin(head_sdf, 0.1);
-    monster = monster.smin(head_back_sdf, 0.03);
-    monster = monster.smin(eye_l, 0.002);
-    monster = monster.smin(eye_r, 0.002);
+    let head = sdf(pos, |p| ellipse_sdf(p, Vec3::splat(0.2)))
+        .pos(0.0, 0.28, 0.0)
+        .mat(Mat::MonsterBody)
+        .build()
+        .smin(
+            sdf(pos, |p| ellipse_sdf(p, Vec3::splat(0.2)))
+                .pos(0.0, 0.28, -0.1)
+                .mat(Mat::MonsterBody),
+            0.03,
+        );
 
-    monster
+    let eye_l = sdf(pos, |p| sphere_sdf(p, 0.05))
+        .pos(0.1, 0.3, 0.14)
+        .mat(Mat::MonsterEye)
+        .build()
+        .smin(
+            sdf(pos, |p| sphere_sdf(p, 0.033))
+                .pos(0.11, 0.3, 0.16)
+                .mat(Mat::MonsterPupil),
+            0.002,
+        );
+
+    let eye_r = sdf(pos, |p| sphere_sdf(p, 0.05))
+        .pos(-0.1, 0.3, 0.14)
+        .mat(Mat::MonsterEye)
+        .build()
+        .smin(
+            sdf(pos, |p| sphere_sdf(p, 0.033))
+                .pos(-0.11, 0.3, 0.16)
+                .mat(Mat::MonsterPupil),
+            0.002,
+        );
+
+    belly
+        .build()
+        .smin(head, 0.1)
+        .smin(eye_l, 0.002)
+        .smin(eye_r, 0.002)
 }
 
 
-fn map(pos: Vec3, time: f32) -> MatDist
+fn map(pos: Vec3, time: f32) -> Sdf<Mat>
 {
     let monster = monster_sdf(pos, time);
 
-    let stone = MatDist::new(
-        Mat::Stone,
-        ellipse_sdf(
-            pos - Vec3::new(-1.0, -0.25, -1.0),
-            Vec3::new(0.4, 0.2, 0.25),
-        ),
-    );
+    let stone = sdf(pos, |p| ellipse_sdf(p, Vec3::new(0.4, 0.2, 0.25)))
+        .pos(-1.0, -0.25, -1.0)
+        .mat(Mat::Stone);
 
-    let ground = MatDist::new(Mat::Ground, pos.y + 0.25);
+    let ground = sdf(pos, plane_sdf).pos(0.0, -0.25, 0.0).mat(Mat::Ground);
 
     let mut scene = monster.min(ground);
     scene = scene.smin(stone, 0.1);
@@ -83,7 +96,6 @@ fn map(pos: Vec3, time: f32) -> MatDist
 effect!(|Effect { uv, time, .. }, _, _| {
     let mut color = Vec3::ZERO;
     let sun_dir = Vec3::new(0.8, 0.55, 0.2).normalize();
-    let matt = Vec3::splat(0.18);
 
     // Setup a camera and march a ray from it...
     let look_at = Vec3::new(-0.5, 0.9, 0.0);
@@ -94,7 +106,7 @@ effect!(|Effect { uv, time, .. }, _, _| {
         Some(mat) =>
         {
             // Calculate the normals of "something"
-            let pos = ray.shoot(mat.dist());
+            let pos = ray.shoot(mat.dist);
             let normal = calc_normal(pos, time, map);
 
             // March shadow rays
@@ -104,22 +116,24 @@ effect!(|Effect { uv, time, .. }, _, _| {
             // Calculate lighting
             let sun_light = f32::clamp(normal.dot(sun_dir), 0.0, 1.0);
             let sun_shadow = shadow_dist.map_or(1.0, |_| 0.0);
-            let sky_light = f32::clamp(0.5 + 0.5 * normal.dot(Vec3::new(0.0, 1.0, 0.0)), 0.0, 1.0);
+            let sky_light = f32::clamp(0.5 + 0.5 * normal.dot(Vec3::new(0.0, 1.0, 0.0)), 0.0, 8.0);
             let bounce_light =
                 f32::clamp(0.5 + 0.5 * normal.dot(Vec3::new(0.0, -1.0, 0.0)), 0.0, 1.0);
+
+            // Calculate materials
+            let matt = match mat.mat
+            {
+                Mat::MonsterBody => Vec3::new(0.2, 0.01, 0.02),
+                Mat::MonsterEye => Vec3::new(0.5, 0.5, 0.5),
+                Mat::MonsterPupil => Vec3::splat(0.01),
+                Mat::Ground => Vec3::new(0.05, 0.1, 0.02),
+                Mat::Stone => Vec3::new(0.05, 0.04, 0.04),
+            };
 
             // Apply lighting
             color += matt * Vec3::new(7.0, 5.0, 3.0) * sun_light * sun_shadow;
             color += matt * Vec3::new(0.5, 0.8, 0.9) * sky_light;
             color += matt * Vec3::new(0.7, 0.3, 0.2) * bounce_light;
-
-            match mat.mat()
-            {
-                Mat::MonsterBody => color *= Vec3::new(0.6, 0.1, 0.1),
-                Mat::MonsterEye => color *= Vec3::new(0.8, 0.8, 0.8),
-                Mat::Ground => color *= Vec3::new(0.1, 0.4, 0.1),
-                Mat::Stone => color *= Vec3::new(0.1, 0.1, 0.1),
-            }
         }
 
         None =>
@@ -130,5 +144,5 @@ effect!(|Effect { uv, time, .. }, _, _| {
         }
     }
 
-    pow(color, 0.4545)
+    color.powf(0.5545)
 });
