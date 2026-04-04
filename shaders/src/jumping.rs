@@ -86,10 +86,7 @@ fn map(pos: Vec3, time: f32) -> Sdf<Mat>
 
     let ground = sdf(pos, plane_sdf).pos(0.0, -0.25, 0.0).mat(Mat::Ground);
 
-    let mut scene = monster.min(ground);
-    scene = scene.smin(stone, 0.1);
-
-    scene
+    monster.min(ground).smin(stone, 0.1)
 }
 
 
