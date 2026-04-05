@@ -23,17 +23,17 @@ impl Ray
         self.ori + t * self.dir
     }
 
-    pub fn march<F, M>(&self, time: f32, map: F) -> Option<Sdf<M>>
+    pub fn march<F, M>(&self, map: F) -> Option<Sdf<M>>
     where
         M: Default,
-        F: Fn(Vec3, f32) -> Sdf<M>,
+        F: Fn(Vec3) -> Sdf<M>,
     {
         let mut t = Sdf::default();
 
         loop
         {
             let pos = self.shoot(t.dist);
-            let dist = map(pos, time);
+            let dist = map(pos);
             t.mat = dist.mat;
 
             if dist.dist < HIT
@@ -49,10 +49,9 @@ impl Ray
         }
     }
 
-    pub fn camera(uv: Vec2, time: f32, look_at: Vec3, zoom: f32, pitch: f32) -> Self
+    pub fn camera(uv: Vec2, look_at: Vec3, zoom: f32, pitch: f32, angle: f32) -> Self
     {
         let pos = Vec2::new(zoom, pitch);
-        let angle = time * 0.1;
         let origin = Vec3::new(angle.sin() * pos.x, pos.y, angle.cos() * pos.x);
         let ww = (look_at - origin).normalize();
         let uu = ww.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
@@ -64,18 +63,43 @@ impl Ray
 }
 
 
-pub fn calc_normal<F, M>(pos: Vec3, time: f32, map: F) -> Vec3
+pub fn calc_normal<F, M>(pos: Vec3, map: F) -> Vec3
 where
-    F: Fn(Vec3, f32) -> Sdf<M>,
+    F: Fn(Vec3) -> Sdf<M>,
 {
     const NORMAL_ACC: Vec2 = Vec2::new(0.0001, 0.0);
 
     Vec3::new(
-        map(pos + NORMAL_ACC.xyy(), time).dist - map(pos - NORMAL_ACC.xyy(), time).dist,
-        map(pos + NORMAL_ACC.yxy(), time).dist - map(pos - NORMAL_ACC.yxy(), time).dist,
-        map(pos + NORMAL_ACC.yyx(), time).dist - map(pos - NORMAL_ACC.yyx(), time).dist,
+        map(pos + NORMAL_ACC.xyy()).dist - map(pos - NORMAL_ACC.xyy()).dist,
+        map(pos + NORMAL_ACC.yxy()).dist - map(pos - NORMAL_ACC.yxy()).dist,
+        map(pos + NORMAL_ACC.yyx()).dist - map(pos - NORMAL_ACC.yyx()).dist,
     )
     .normalize()
+}
+
+
+/// Applies gamma correction and dithering
+pub fn finalize(uv: Vec2, col: Vec3) -> Vec3
+{
+    col.powf(0.45) + ((uv.x * 114.0 * 11.0).sin() * (uv.y * 211.1 * 11.0).sin() / 600.0)
+}
+
+
+/// Multisamples `f` to antialiase the image
+pub fn antialiase(aa: u32, uv: Vec2, f: impl Fn(Vec2) -> Vec3) -> Vec3
+{
+    let mut color = Vec3::ZERO;
+
+    for off_x in 0..aa
+    {
+        for off_y in 0..aa
+        {
+            let offset = (Vec2::new(off_x as f32, off_y as f32) / aa as f32 - 0.5) * HIT;
+            color += f(uv + offset);
+        }
+    }
+
+    color / (aa * aa) as f32
 }
 
 
@@ -125,20 +149,37 @@ impl<M> Sdf<M>
 where
     M: PartialEq,
 {
-    pub fn min(self, other: impl Into<Self>) -> Self
+    pub fn join_sharp(self, other: impl Into<Self>) -> Self
     {
         let other = other.into();
         if self.dist < other.dist { self } else { other }
     }
 
-    pub fn smin(self, other: impl Into<Self>, smooth: f32) -> Self
+    pub fn join(self, other: impl Into<Self>, smooth: f32) -> Self
     {
         let other = other.into();
         let h = f32::max(smooth - f32::abs(self.dist - other.dist), 0.0);
         let h = h * h / (smooth * 4.0);
-        let mut min = self.min(other);
+        let mut min = self.join_sharp(other);
         min.dist -= h;
         min
+    }
+
+    pub fn carve_sharp(mut self, other: impl Into<Self>) -> Self
+    {
+        let other = other.into();
+        self.dist = self.dist.max(-other.dist);
+        self
+    }
+
+    pub fn carve(self, other: impl Into<Self>, smooth: f32) -> Self
+    {
+        let other = other.into();
+        let h = f32::max(smooth - f32::abs(self.dist + other.dist), 0.0);
+        let h = h * h / (smooth * 4.0);
+        let mut max = self.carve_sharp(other);
+        max.dist += h;
+        max
     }
 
     pub fn is(self, other: M) -> bool
@@ -213,7 +254,7 @@ where
             ray_tip,
             func,
             mat: M::default(),
-            pos: Vec3::ZERO,
+            pos: ray_tip,
         }
     }
 
@@ -226,9 +267,31 @@ where
     #[inline]
     pub fn posv(mut self, pos: Vec3) -> Self
     {
-        self.pos = pos;
+        self.pos = self.ray_tip - pos;
         self
     }
+
+    #[inline]
+    pub fn rot_x(mut self, angle: f32) -> Self
+    {
+        self.pos = self.pos.rotate_x(angle.to_radians());
+        self
+    }
+
+    #[inline]
+    pub fn rot_y(mut self, angle: f32) -> Self
+    {
+        self.pos = self.pos.rotate_y(angle.to_radians());
+        self
+    }
+
+    #[inline]
+    pub fn rot_z(mut self, angle: f32) -> Self
+    {
+        self.pos = self.pos.rotate_z(angle.to_radians());
+        self
+    }
+
 
     #[inline]
     pub fn mat(mut self, mat: M) -> Self
@@ -245,7 +308,7 @@ where
         let f = self.func;
 
         Sdf {
-            dist: f(self.ray_tip - self.pos),
+            dist: f(self.pos),
             mat: self.mat,
         }
     }

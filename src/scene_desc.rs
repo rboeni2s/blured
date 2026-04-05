@@ -25,9 +25,10 @@ pub enum Effect
 {
     Blur(BlurSettings),
     Neuro(NeuroSettings),
-    Blank,
     Custom(String),
+    Blank,
     Jumping,
+    Gear,
 }
 
 
@@ -47,6 +48,7 @@ impl Effect
             Effect::Neuro(settings) => (pipeline.neuro_pipeline.clone(), settings.into()),
             Effect::Blank => (pipeline.blank_pipeline.clone(), EffectParams::default()),
             Effect::Jumping => (pipeline.jumping_pipeline.clone(), EffectParams::default()),
+            Effect::Gear => (pipeline.gear_pipeline.clone(), EffectParams::default()),
 
             // Load a user supplied wgsl shader from disk
             Effect::Custom(path) =>
@@ -76,7 +78,7 @@ impl Effect
     /// and needs to overwrite the "dynamic" field in it's config.
     pub fn require_dynamic(&self) -> bool
     {
-        matches!(self, Effect::Neuro(_))
+        matches!(self, Effect::Neuro(_) | Effect::Jumping | Effect::Gear)
     }
 }
 

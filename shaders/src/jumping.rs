@@ -10,7 +10,7 @@ material!(Mat => [MonsterBody, MonsterEye, Ground, Stone, MonsterPupil]);
 fn monster_sdf(pos: Vec3, time: f32) -> Sdf<Mat>
 {
     let t = (time * 0.8).fract();
-    // let t = 0.5; // Freeze the animation
+    let t = 0.5; // Freeze the animation
 
     // Animate the y_pos of the monster
     let y_pos = 4.0 * t * (1.0 - t);
@@ -39,7 +39,7 @@ fn monster_sdf(pos: Vec3, time: f32) -> Sdf<Mat>
         .pos(0.0, 0.28, 0.0)
         .mat(Mat::MonsterBody)
         .build()
-        .smin(
+        .join(
             sdf(pos, |p| ellipse_sdf(p, Vec3::splat(0.2)))
                 .pos(0.0, 0.28, -0.1)
                 .mat(Mat::MonsterBody),
@@ -50,7 +50,7 @@ fn monster_sdf(pos: Vec3, time: f32) -> Sdf<Mat>
         .pos(0.1, 0.3, 0.14)
         .mat(Mat::MonsterEye)
         .build()
-        .smin(
+        .join(
             sdf(pos, |p| sphere_sdf(p, 0.033))
                 .pos(0.11, 0.3, 0.16)
                 .mat(Mat::MonsterPupil),
@@ -61,18 +61,35 @@ fn monster_sdf(pos: Vec3, time: f32) -> Sdf<Mat>
         .pos(-0.1, 0.3, 0.14)
         .mat(Mat::MonsterEye)
         .build()
-        .smin(
+        .join(
             sdf(pos, |p| sphere_sdf(p, 0.033))
                 .pos(-0.11, 0.3, 0.16)
                 .mat(Mat::MonsterPupil),
             0.002,
         );
 
+    let eyelid_l = sdf(pos, |p| ellipse_sdf(p, Vec3::new(0.07, 0.035, 0.04)))
+        .pos(0.12, 0.375, 0.14)
+        .rot_z(22.0)
+        .rot_y(-15.0)
+        .mat(Mat::MonsterBody);
+
+    let eyelid_r = sdf(pos, |p| ellipse_sdf(p, Vec3::new(0.07, 0.035, 0.04)))
+        .pos(-0.12, 0.375, 0.14)
+        .rot_z(-22.0)
+        .rot_y(15.0)
+        .mat(Mat::MonsterBody);
+
+    let mouth = sdf(pos, |p| ellipse_sdf(p, Vec3::new(0.05, 0.04, 0.18))).pos(0.0, 0.2, 0.09);
+
     belly
         .build()
-        .smin(head, 0.1)
-        .smin(eye_l, 0.002)
-        .smin(eye_r, 0.002)
+        .join(head, 0.1)
+        .join(eyelid_l, 0.08)
+        .join(eyelid_r, 0.08)
+        .join(eye_l, 0.002)
+        .join(eye_r, 0.002)
+        .carve(mouth, 0.03)
 }
 
 
@@ -86,7 +103,7 @@ fn map(pos: Vec3, time: f32) -> Sdf<Mat>
 
     let ground = sdf(pos, plane_sdf).pos(0.0, -0.25, 0.0).mat(Mat::Ground);
 
-    monster.min(ground).smin(stone, 0.1)
+    monster.join_sharp(ground).join(stone, 0.1)
 }
 
 
@@ -96,19 +113,19 @@ effect!(|Effect { uv, time, .. }, _, _| {
 
     // Setup a camera and march a ray from it...
     let look_at = Vec3::new(-0.5, 0.9, 0.0);
-    let ray = Ray::camera(uv, time, look_at, 5.0, 2.0);
+    let ray = Ray::camera(uv, look_at, 5.0, 2.0, time * 0.1);
 
-    match ray.march(time, map)
+    match ray.march(|p| map(p, time))
     {
         Some(mat) =>
         {
             // Calculate the normals of "something"
             let pos = ray.shoot(mat.dist);
-            let normal = calc_normal(pos, time, map);
+            let normal = calc_normal(pos, |p| map(p, time));
 
             // March shadow rays
             let shadow_ray = Ray::new(pos + (normal * HIT), sun_dir);
-            let shadow_dist = shadow_ray.march(time, map);
+            let shadow_dist = shadow_ray.march(|p| map(p, time));
 
             // Calculate lighting
             let sun_light = f32::clamp(normal.dot(sun_dir), 0.0, 1.0);
