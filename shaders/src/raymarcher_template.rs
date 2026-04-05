@@ -23,7 +23,7 @@ fn raymarcher(uv: Vec2, time: f32) -> Vec3
         match camera.march(|p| map(p, time))
         {
             Some(obj) => shade(obj, camera, time),
-            None => Vec3::splat(1.0 + 2.0 * camera.dir.y) * 0.0001,
+            None => Vec3::splat(1.0 + 1.8 * uv.y) * 0.0001,
         }
     });
 
