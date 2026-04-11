@@ -117,7 +117,7 @@ impl Application
 
     fn dispatch(&self) -> anyhow::Result<()>
     {
-        const FRAME_TIME_TARGET_MS: u64 = 16;
+        const FRAME_TIME_TARGET_MS: u64 = 25;
 
         let mut last_frame_time;
         let mut frame_start = Instant::now();

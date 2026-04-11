@@ -111,6 +111,7 @@ impl ScenePipeline
                 height,
                 depth_or_array_layers: 1,
             },
+            wgpu::AddressMode::Repeat,
         );
 
         Self {
@@ -170,6 +171,7 @@ pub struct EffectPipeline
     pub neuro_pipeline: Guard<wgpu::RenderPipeline>,
     pub blank_pipeline: Guard<wgpu::RenderPipeline>,
     pub jumping_pipeline: Guard<wgpu::RenderPipeline>,
+    pub gear_pipeline: Guard<wgpu::RenderPipeline>,
 }
 
 impl EffectPipeline
@@ -297,6 +299,15 @@ impl EffectPipeline
             "jumping::fragment",
         );
 
+        let gear_pipeline = Self::create_pipeline_impl(
+            device,
+            &pipeline_layout,
+            format,
+            &blured_shader_bundle,
+            "gear::fragment",
+        );
+
+
         let vertex_buffer = VertexBuffer::new(device, SQUARE_VERTICES);
         let index_buffer = IndexBuffer::new(device, SQUARE_INDICES);
 
@@ -305,6 +316,7 @@ impl EffectPipeline
             neuro_pipeline,
             blank_pipeline,
             jumping_pipeline,
+            gear_pipeline,
             pipeline_layout,
             texture_bind_group_layout,
             vertex_buffer,

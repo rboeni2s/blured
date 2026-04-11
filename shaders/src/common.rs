@@ -71,3 +71,10 @@ pub fn mix(x: Vec3, y: Vec3, a: f32) -> Vec3
 {
     x * (1.0 - a) + y * a
 }
+
+
+pub fn smin(a: f32, b: f32, blend: f32) -> f32
+{
+    let h = f32::max(blend - f32::abs(a - b), 0.0);
+    f32::min(a, b) - h * h / (blend * 4.0)
+}

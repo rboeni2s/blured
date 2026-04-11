@@ -1,12 +1,14 @@
 pub mod application;
 pub mod config;
 pub mod renderer;
+pub mod socket_server;
 pub mod wlclient;
 
 use crate::service::{
     application::{AppEvent, Application},
     config::Config,
     renderer::Renderer,
+    socket_server::IpcSocket,
     wlclient::WlClient,
 };
 use plug::prelude::*;
@@ -19,5 +21,11 @@ use plug::prelude::*;
 /// construct a registry.
 pub fn build_reg() -> anyhow::Result<Registry<AppEvent>>
 {
-    Ok(build_reg!(Application, WlClient, Renderer, Config))
+    Ok(build_reg!(
+        Application,
+        WlClient,
+        Renderer,
+        Config,
+        IpcSocket
+    ))
 }

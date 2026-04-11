@@ -3,6 +3,7 @@
 // Modules for each effect
 //////////////////////////
 pub mod blank;
+pub mod gear;
 pub mod jumping;
 
 
@@ -10,10 +11,11 @@ pub mod jumping;
 ////////////////////////////////////////////////////////////////////////////////////////////
 pub mod common;
 pub mod effect;
+pub mod raymarch;
 pub mod scene;
 pub use common::*;
 pub use effect::Effect;
-pub use glam::{Vec2, Vec3, Vec4, swizzles::*};
+pub use glam::{Mat2, Vec2, Vec3, Vec4, swizzles::*};
 pub use spirv_std::{Sampler, image::Image2d, spirv};
 
 

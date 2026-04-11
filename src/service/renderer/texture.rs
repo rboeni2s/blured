@@ -2,6 +2,7 @@
 
 
 use image::RgbaImage;
+use wgpu::AddressMode;
 
 
 pub struct Image(RgbaImage);
@@ -43,7 +44,7 @@ pub struct Texture
 
 impl Texture
 {
-    pub fn new(device: &wgpu::Device, extent: wgpu::Extent3d) -> Self
+    pub fn new(device: &wgpu::Device, extent: wgpu::Extent3d, mode: wgpu::AddressMode) -> Self
     {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("texture"),
@@ -62,9 +63,9 @@ impl Texture
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Texture Sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            address_mode_u: mode,
+            address_mode_v: mode,
+            address_mode_w: mode,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Nearest,
             mipmap_filter: wgpu::MipmapFilterMode::Nearest,
@@ -121,7 +122,7 @@ impl<'a> AsocTexture<'a>
             depth_or_array_layers: 1,
         };
 
-        let texture = Texture::new(device, extent);
+        let texture = Texture::new(device, extent, AddressMode::ClampToEdge);
         texture.write_texture(queue, &image);
         Self::new(texture, image)
     }

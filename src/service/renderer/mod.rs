@@ -77,16 +77,17 @@ impl Renderer
         Ok(())
     }
 
-    pub fn next_scene(&self) -> anyhow::Result<()>
+    pub fn next_scene(&self) -> anyhow::Result<String>
     {
-        self.renderer
+        let ident = self
+            .renderer
             .lock()
             .as_mut()
             .context("Renderer was not initialized")?
             .next_scene()?;
 
         self.out_of_date.store(true, Ordering::Relaxed);
-        Ok(())
+        Ok(ident)
     }
 
     pub fn switch_scene(&self, ident: &str) -> anyhow::Result<()>
@@ -114,9 +115,10 @@ impl Renderer
         Ok(())
     }
 
-    pub fn toggle_effect(&self) -> anyhow::Result<()>
+    pub fn toggle_effect(&self) -> anyhow::Result<bool>
     {
-        self.renderer
+        let on = self
+            .renderer
             .lock()
             .as_mut()
             .context("Renderer was not initialized")?
@@ -124,7 +126,7 @@ impl Renderer
 
         self.out_of_date.store(true, Ordering::Relaxed);
 
-        Ok(())
+        Ok(on)
     }
 
     fn render(&self, delta: Duration) -> anyhow::Result<RenderResult>

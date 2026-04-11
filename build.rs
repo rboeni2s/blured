@@ -1,4 +1,4 @@
-use cargo_gpu_install::install::Install;
+use cargo_gpu_install::{install::Install, spirv_builder::Capability};
 use std::path::PathBuf;
 
 
@@ -12,7 +12,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>>
     builder.build_script.env_shader_spv_path = Some(true);
 
     let spv_result = builder
-        .capability(cargo_gpu_install::spirv_builder::Capability::ImageQuery)
+        .capability(Capability::ImageQuery)
+        .capability(Capability::Int8)
         .build()?;
 
     let spv_path = spv_result.module.unwrap_single();
