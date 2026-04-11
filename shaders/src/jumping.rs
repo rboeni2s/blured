@@ -117,7 +117,7 @@ effect!(|Effect { uv, time, .. }, _, _| {
 
     match ray.march(|p| map(p, time))
     {
-        Some(mat) =>
+        (MarchResult::Hit, mat) =>
         {
             // Calculate the normals of "something"
             let pos = ray.shoot(mat.dist);
@@ -129,7 +129,15 @@ effect!(|Effect { uv, time, .. }, _, _| {
 
             // Calculate lighting
             let sun_light = f32::clamp(normal.dot(sun_dir), 0.0, 1.0);
-            let sun_shadow = shadow_dist.map_or(1.0, |_| 0.0);
+            // let sun_shadow = shadow_dist.map_or(1.0, |_| 0.0);
+            let sun_shadow = if matches!(shadow_dist.0, MarchResult::Miss)
+            {
+                1.0
+            }
+            else
+            {
+                0.0
+            };
             let sky_light = f32::clamp(0.5 + 0.5 * normal.dot(Vec3::new(0.0, 1.0, 0.0)), 0.0, 8.0);
             let bounce_light =
                 f32::clamp(0.5 + 0.5 * normal.dot(Vec3::new(0.0, -1.0, 0.0)), 0.0, 1.0);
@@ -150,7 +158,7 @@ effect!(|Effect { uv, time, .. }, _, _| {
             color += matt * Vec3::new(0.7, 0.3, 0.2) * bounce_light;
         }
 
-        None =>
+        (MarchResult::Miss, _) =>
         {
             // Draw a sky
             color = Vec3::new(0.2, 0.2, 1.0) - ray.dir.y.max(0.0) * 0.5;

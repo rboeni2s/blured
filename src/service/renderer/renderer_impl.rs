@@ -268,12 +268,13 @@ impl RendererImpl
         self.effect_on = on;
     }
 
-    pub fn toggle_effect(&mut self)
+    pub fn toggle_effect(&mut self) -> bool
     {
         self.effect_on = !self.effect_on;
+        self.effect_on
     }
 
-    pub fn next_scene(&mut self) -> anyhow::Result<usize>
+    pub fn next_scene(&mut self) -> anyhow::Result<String>
     {
         let next_index = (self.scene_index + 1) % self.scenes.len();
 
@@ -283,6 +284,12 @@ impl RendererImpl
             _ => return Err(anyhow::Error::msg("No scenes")),
         };
 
-        self.switch_scene(&ident)
+        self.switch_scene(&ident)?;
+        Ok(ident)
+    }
+
+    pub fn get_scene_name(&self, index: usize) -> Option<String>
+    {
+        self.scenes.get(index).map(|s| s.ident.clone())
     }
 }

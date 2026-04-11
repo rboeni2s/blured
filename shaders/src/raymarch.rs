@@ -11,6 +11,15 @@ pub struct Ray
 }
 
 
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum MarchResult
+{
+    Hit,
+    Miss,
+}
+
+
 impl Ray
 {
     pub fn new(ori: Vec3, dir: Vec3) -> Self
@@ -23,9 +32,18 @@ impl Ray
         self.ori + t * self.dir
     }
 
-    pub fn march<F, M>(&self, map: F) -> Option<Sdf<M>>
+    //NOTE: About the return value:
+    //      It would be nice to have it be an Option<Sdf<M>>, however
+    //      - as far as i can tell - having an enum wrapping a struct that is above a certain size
+    //      causes a compiler bug on the spirv codegen backend or is just simply not supported.
+    //      That is because above a certain struct size the compiler claims that the struct is dynamically
+    //      sized and cannot be memcpy'ed which makes it impossible to construct a Some(Sdf<M>)...
+    //
+    //      I do not know enough about this topic to know if this is normal behavior and how to make it work on spirv,
+    //      so i will avoid using a tagged union here.
+    pub fn march<F, M>(&self, map: F) -> (MarchResult, Sdf<M>)
     where
-        M: Default,
+        M: Default + Copy + Clone,
         F: Fn(Vec3) -> Sdf<M>,
     {
         let mut t = Sdf::default();
@@ -35,14 +53,16 @@ impl Ray
             let pos = self.shoot(t.dist);
             let dist = map(pos);
             t.mat = dist.mat;
+            t.pos = dist.pos;
+            t.com += 1.0;
 
             if dist.dist < HIT
             {
-                return Some(t);
+                return (MarchResult::Hit, t);
             }
             else if t.dist > FAR
             {
-                return None;
+                return (MarchResult::Miss, t);
             }
 
             t.dist += dist.dist;
@@ -67,14 +87,42 @@ pub fn calc_normal<F, M>(pos: Vec3, map: F) -> Vec3
 where
     F: Fn(Vec3) -> Sdf<M>,
 {
-    const NORMAL_ACC: Vec2 = Vec2::new(0.0001, 0.0);
+    let mut normal = Vec3::ZERO;
 
-    Vec3::new(
-        map(pos + NORMAL_ACC.xyy()).dist - map(pos - NORMAL_ACC.xyy()).dist,
-        map(pos + NORMAL_ACC.yxy()).dist - map(pos - NORMAL_ACC.yxy()).dist,
-        map(pos + NORMAL_ACC.yyx()).dist - map(pos - NORMAL_ACC.yyx()).dist,
-    )
-    .normalize()
+    for i in 0..4
+    {
+        let o = Vec3::new(
+            (((i + 3) >> 1) & 1) as f32,
+            ((i >> 1) & 1) as f32,
+            (i & 1) as f32,
+        );
+
+        let e = 0.5773 * (2.0 * o - 1.0);
+        normal += e * map(pos + 0.0005 * e).dist;
+    }
+
+    normal.normalize()
+}
+
+
+pub fn calc_occlusion<F, M>(hit: Vec3, normal: Vec3, map: F) -> f32
+where
+    F: Fn(Vec3) -> Sdf<M>,
+{
+    let mut occlusion = 0.0;
+    let mut scale = 1.0;
+    let hit = hit + normal * HIT;
+
+    for i in 0..5
+    {
+        let h = 0.01 + 0.12 * i as f32 / 4.0;
+        let d = map(hit + h * normal).dist;
+
+        occlusion += (h - d) * scale;
+        scale *= 0.95;
+    }
+
+    (1.0 - 3.0 * occlusion).clamp(0.0, 1.0)
 }
 
 
@@ -94,7 +142,7 @@ pub fn antialiase(aa: u32, uv: Vec2, f: impl Fn(Vec2) -> Vec3) -> Vec3
     {
         for off_y in 0..aa
         {
-            let offset = (Vec2::new(off_x as f32, off_y as f32) / aa as f32 - 0.5) * HIT;
+            let offset = (Vec2::new(off_x as f32, off_y as f32) / aa as f32 - 0.5) * 0.0012;
             color += f(uv + offset);
         }
     }
@@ -124,6 +172,30 @@ pub fn plane_sdf(pos: Vec3) -> f32
 }
 
 
+pub fn volume_y_sdf(pos: Vec3, thickness: f32) -> f32
+{
+    pos.y.abs() - thickness
+}
+
+
+pub fn box_sdf(pos: Vec3, dim: Vec3) -> f32
+{
+    (pos.abs() - dim).max(Vec3::ZERO).length()
+}
+
+
+pub fn cylinder_sdf(pos: Vec3, radius: f32, length: f32) -> f32
+{
+    (pos.xz().length() - radius).max(pos.y.abs() - length)
+}
+
+
+pub fn pipe_sdf(pos: Vec3, radius: f32, length: f32, wall: f32) -> f32
+{
+    ((pos.xz().length() - radius).abs() - wall).max(pos.y.abs() - length)
+}
+
+
 #[macro_export]
 macro_rules! material {
     ($mname:ident => [$($mat:ident),+]) => {
@@ -138,10 +210,13 @@ macro_rules! material {
 }
 
 
+#[derive(Copy, Clone)]
 pub struct Sdf<M>
 {
     pub dist: f32,
+    pub com: f32,
     pub mat: M,
+    pub pos: Vec3,
 }
 
 
@@ -157,6 +232,11 @@ where
 
     pub fn join(self, other: impl Into<Self>, smooth: f32) -> Self
     {
+        if smooth == 0.0
+        {
+            return self.join_sharp(other);
+        }
+
         let other = other.into();
         let h = f32::max(smooth - f32::abs(self.dist - other.dist), 0.0);
         let h = h * h / (smooth * 4.0);
@@ -174,6 +254,11 @@ where
 
     pub fn carve(self, other: impl Into<Self>, smooth: f32) -> Self
     {
+        if smooth == 0.0
+        {
+            return self.carve_sharp(other);
+        }
+
         let other = other.into();
         let h = f32::max(smooth - f32::abs(self.dist + other.dist), 0.0);
         let h = h * h / (smooth * 4.0);
@@ -182,9 +267,44 @@ where
         max
     }
 
+    pub fn clip_sharp(mut self, other: impl Into<Self>) -> Self
+    {
+        let other = other.into();
+        self.dist = self.dist.max(other.dist);
+        self
+    }
+
+    pub fn clip(self, other: impl Into<Self>, smooth: f32) -> Self
+    {
+        if smooth == 0.0
+        {
+            return self.clip_sharp(other);
+        }
+
+        let other = other.into();
+        let h = f32::max(smooth - f32::abs(self.dist - other.dist), 0.0);
+        let h = h * h / (smooth * 4.0);
+        let mut clip = self.clip_sharp(other);
+        clip.dist += h;
+        clip
+    }
+
+
     pub fn is(self, other: M) -> bool
     {
         self.mat == other
+    }
+
+    pub fn round(mut self, amount: f32) -> Self
+    {
+        self.dist -= amount;
+        self
+    }
+
+    pub fn mat(mut self, mat: M) -> Self
+    {
+        self.mat = mat;
+        self
     }
 }
 
@@ -215,6 +335,8 @@ where
     {
         Self {
             dist: 0.0,
+            com: 0.0,
+            pos: Default::default(),
             mat: Default::default(),
         }
     }
@@ -239,6 +361,7 @@ pub struct SdfBuilder<F, M>
     func: F,
     mat: M,
     ray_tip: Vec3,
+    rounding: f32,
 }
 
 
@@ -255,6 +378,7 @@ where
             func,
             mat: M::default(),
             pos: ray_tip,
+            rounding: 0.0,
         }
     }
 
@@ -294,6 +418,14 @@ where
 
 
     #[inline]
+    pub fn round(mut self, amount: f32) -> Self
+    {
+        self.rounding = amount;
+        self
+    }
+
+
+    #[inline]
     pub fn mat(mut self, mat: M) -> Self
     {
         self.mat = mat;
@@ -308,7 +440,9 @@ where
         let f = self.func;
 
         Sdf {
-            dist: f(self.pos),
+            pos: self.pos,
+            com: 0.0,
+            dist: f(self.pos) - self.rounding,
             mat: self.mat,
         }
     }

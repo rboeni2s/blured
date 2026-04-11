@@ -199,6 +199,7 @@ name = "blured"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "blured_ipc",
  "cargo-gpu-install",
  "cgmath",
  "ctrlc",
@@ -211,6 +212,7 @@ dependencies = [
  "raw-window-handle",
  "serde",
  "serde-kdl2",
+ "serde_json",
  "shellexpand",
  "tempfile",
  "toml 1.1.0+spec-1.1.0",
@@ -218,6 +220,15 @@ dependencies = [
  "wayland-protocols",
  "wayland-protocols-wlr",
  "wgpu",
+]
+
+[[package]]
+name = "blured_ipc"
+version = "0.1.0"
+source = "git+https://github.com/rboeni2s/blured_ipc.git#bc18ad762e516900c38d1e3b18177c57907e7739"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

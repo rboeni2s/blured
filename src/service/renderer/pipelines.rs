@@ -111,6 +111,7 @@ impl ScenePipeline
                 height,
                 depth_or_array_layers: 1,
             },
+            wgpu::AddressMode::Repeat,
         );
 
         Self {

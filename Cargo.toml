@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.102"
+blured_ipc = { git = "https://github.com/rboeni2s/blured_ipc.git", version = "0.1.0" }
 cgmath = "0.18.0"
 ctrlc = { version = "3.5.2", features = ["termination"] }
 image = "0.25.10"
@@ -16,6 +17,7 @@ pollster = "0.4.0"
 raw-window-handle = "0.6.2"
 serde = { version = "1.0.228", features = ["derive"] }
 serde-kdl2 = "0.1.0"
+serde_json = "1.0.149"
 shellexpand = "3.1.2"
 tempfile = "3.27.0"
 toml = "1.1.0"
