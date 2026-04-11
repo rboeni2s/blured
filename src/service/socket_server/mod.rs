@@ -6,7 +6,7 @@ use blured_ipc::{FromToJson, SOCKET_ADDR, msg::*};
 use keep::Keep;
 use plug::prelude::*;
 use std::{
-    io::{ErrorKind, Read, Write},
+    io::{BufRead, BufReader, BufWriter, ErrorKind, Write},
     os::unix::net::{UnixListener, UnixStream},
     sync::atomic::{AtomicBool, Ordering},
     thread::JoinHandle,
@@ -58,6 +58,7 @@ impl IpcSocket
                         let cd = client_data.clone();
                         let _ = std::thread::spawn(move || {
                             log::info!("Handling new ipc client {addr:?}");
+
                             if let Err(e) = Self::handle_client_task(client, cd)
                             {
                                 log::warn!("Error during ipc client communication {e}");
@@ -93,13 +94,26 @@ impl IpcSocket
         }
     }
 
-    fn handle_client_task(mut client: UnixStream, cd: ClientData) -> anyhow::Result<()>
+    fn handle_client_task(client: UnixStream, cd: ClientData) -> anyhow::Result<()>
     {
-        let mut buf = Vec::with_capacity(size_of::<Message>());
-        while client.read_to_end(&mut buf).is_ok()
+        let mut reader = BufReader::new(client.try_clone()?);
+        let mut writer = BufWriter::new(client);
+
+        let mut buf = Vec::with_capacity(256);
+
+        while reader.read_until(b'\0', &mut buf).is_ok()
         {
-            let message = Message::from_json_bytes(&buf)?;
+            if buf.len() == 0
+            {
+                // Connection was closed
+                break;
+            }
+
+            let message = Message::from_json_bytes(&buf[..buf.len().saturating_sub(1)])?;
+            buf.clear();
+
             let instance = message.instance; //HACK: Fake the instance for now...
+
 
             let status = match message.action
             {
@@ -146,7 +160,9 @@ impl IpcSocket
             };
 
             let response = Response { instance, status }.to_json_bytes()?;
-            client.write_all(&response)?;
+            writer.write_all(&response)?;
+            writer.write_all(b"\0")?;
+            writer.flush()?;
         }
 
         Ok(())

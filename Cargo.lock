@@ -225,7 +225,7 @@ dependencies = [
 [[package]]
 name = "blured_ipc"
 version = "0.1.0"
-source = "git+https://github.com/rboeni2s/blured_ipc.git#bc18ad762e516900c38d1e3b18177c57907e7739"
+source = "git+https://github.com/rboeni2s/blured_ipc.git#9000e5df1a97e924b9d695d2e987d91a4554a228"
 dependencies = [
  "serde",
  "serde_json",
