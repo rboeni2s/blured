@@ -45,7 +45,7 @@ cargo run -r
   - [ ] Add setup guide
   - [ ] Add custom effect tutorial
 - [ ] Multi monitor support and configuration
-- [ ] Command-line utility `bluredctl` for scene switching and effect toggling
+- [x] Command-line utility `bluredctl` for scene switching and effect toggling
 - [ ] Adapters for popular compositors (Hyprland, Sway, Niri, ...) to expose information like "window count on active workspace", "is a window focused", or "focused window position" to blured
 - [ ] More effects
 - [ ] More image sources, for example "quote of the day", "space picture of the day", "animal picture of the day", or "picture based on the weather in your area"
