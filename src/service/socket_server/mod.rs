@@ -164,7 +164,22 @@ impl IpcSocket
                 Action::SetSlideshowOn(on) =>
                 {
                     cd.app.set_slideshow_active(on);
-                    Status::Ok(OkResponse::Ok)
+                    cd.app.reset_slideshow_timer();
+                    Status::Ok(OkResponse::SetSlideshowOn(on))
+                }
+
+                Action::ToggleSlideshow =>
+                {
+                    let on = cd.app.toggle_slideshow_active();
+                    cd.app.reset_slideshow_timer();
+                    Status::Ok(OkResponse::SetSlideshowOn(on))
+                }
+
+                Action::SetSlideshowInterval(interval) =>
+                {
+                    cd.app.set_slideshow_interval(interval);
+                    cd.app.reset_slideshow_timer();
+                    Status::Ok(OkResponse::SetSlideshowInterval(interval))
                 }
             };
 

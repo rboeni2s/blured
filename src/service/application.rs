@@ -125,6 +125,14 @@ impl Application
         self.slideshow.lock().active = active;
     }
 
+    pub fn toggle_slideshow_active(&self) -> bool
+    {
+        let mut lock = self.slideshow.lock();
+        let active = !lock.active;
+        lock.active = active;
+        active
+    }
+
     pub fn set_slideshow_interval(&self, interval: Duration)
     {
         self.slideshow.lock().interval = interval;
