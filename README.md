@@ -52,5 +52,11 @@ cargo run -r
 
 
 ## Gallery
-**Neuro - Abstract Galaxy Shader**
-<video src="https://github.com/user-attachments/assets/c88db0f6-1f1e-4b77-8132-29d0986047b8" loop muted/>
+* **Neuro - Abstract Galaxy Shader**
+  <video src="https://github.com/user-attachments/assets/c88db0f6-1f1e-4b77-8132-29d0986047b8" loop muted/>
+
+* **Blur - Toggleable Blur Shader** <br>
+  Automatic background bluring using [bluredctl](https://github.com/rboeni2s/bluredctl) and [Hyprland](https://github.com/hyprwm/hyprland).
+  <video src="https://github.com/user-attachments/assets/00bc0483-cca4-4398-8ad3-a62a11d175b4" loop muted/>
+
+
