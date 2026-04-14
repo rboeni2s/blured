@@ -115,6 +115,21 @@ impl Application
         self.should_quit.write(true);
     }
 
+    pub fn reset_slideshow_timer(&self)
+    {
+        self.slideshow.lock().time = Instant::now();
+    }
+
+    pub fn set_slideshow_active(&self, active: bool)
+    {
+        self.slideshow.lock().active = active;
+    }
+
+    pub fn set_slideshow_interval(&self, interval: Duration)
+    {
+        self.slideshow.lock().interval = interval;
+    }
+
     fn dispatch(&self) -> anyhow::Result<()>
     {
         const FRAME_TIME_TARGET_MS: u64 = 25;

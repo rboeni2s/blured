@@ -103,7 +103,7 @@ impl IpcSocket
 
         while reader.read_until(b'\0', &mut buf).is_ok()
         {
-            if buf.len() == 0
+            if buf.is_empty()
             {
                 // Connection was closed
                 break;
@@ -121,7 +121,11 @@ impl IpcSocket
                 {
                     match cd.renderer.switch_scene(&scene)
                     {
-                        Ok(_) => Status::Ok(OkResponse::SwitchedScene(scene)),
+                        Ok(_) =>
+                        {
+                            cd.app.reset_slideshow_timer();
+                            Status::Ok(OkResponse::SwitchedScene(scene))
+                        }
                         Err(_) => Status::Err(ErrResponse::NoSuchScene(scene)),
                     }
                 }
@@ -130,7 +134,11 @@ impl IpcSocket
                 {
                     match cd.renderer.next_scene()
                     {
-                        Ok(name) => Status::Ok(OkResponse::SwitchedScene(name)),
+                        Ok(name) =>
+                        {
+                            cd.app.reset_slideshow_timer();
+                            Status::Ok(OkResponse::SwitchedScene(name))
+                        }
                         Err(e) => Status::Err(ErrResponse::Error(e.to_string())),
                     }
                 }
@@ -153,9 +161,10 @@ impl IpcSocket
                     }
                 }
 
-                Action::SetSlideshowOn(_) =>
+                Action::SetSlideshowOn(on) =>
                 {
-                    todo!("need to implement slide show toggle in app service")
+                    cd.app.set_slideshow_active(on);
+                    Status::Ok(OkResponse::Ok)
                 }
             };
 
